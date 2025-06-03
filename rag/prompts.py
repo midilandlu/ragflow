@@ -181,6 +181,8 @@ Overall, while Musk enjoys Dogecoin and often promotes it, he also warns against
 
 """
 
+'''
+--- disable origin code for enhance keyword extraction --- Mage 6/3/2025 
 
 def keyword_extraction(chat_mdl, content, topn=3):
     prompt = f"""
@@ -205,6 +207,142 @@ Requirements:
     if kwd.find("**ERROR**") >= 0:
         return ""
     return kwd
+'''
+# new function for extract PIMS data
+
+def keyword_extraction(chat_mdl, content, topn=3):
+    """
+    Enhanced keyword extraction for technical documents.
+    Maintains compatibility with original function signature.
+    Automatically extracts PIMS numbers, project phases, and project names.
+    """
+    
+    # 預先提取結構化資訊
+    structured_info = _extract_structured_info(content)
+    
+    # 構建增強的提示詞
+    prompt = f"""
+Role: You're a text analyzer specializing in technical and engineering documents.
+Task: extract the most important keywords/phrases of a given piece of text content.
+Requirements:
+  - Summarize the text content, and give top {topn} important keywords/phrases.
+  - PRIORITY: Always include PIMS numbers (PIMS-XXXXXX), project phases (DVT1/DVT2/MP/EVT/PVT), and project names if found.
+  - Focus on technical components, issues, and engineering terms.
+  - The keywords MUST be in language of the given piece of text content.
+  - The keywords are delimited by ENGLISH COMMA.
+  - Keywords ONLY in output.
+
+### Text Content
+{content}
+"""
+
+    msg = [{"role": "system", "content": prompt}, {"role": "user", "content": "Output: "}]
+    _, msg = message_fit_in(msg, chat_mdl.max_length)
+    kwd = chat_mdl.chat(prompt, msg[1:], {"temperature": 0.2})
+    if isinstance(kwd, tuple):
+        kwd = kwd[0]
+    kwd = re.sub(r"^.*</think>", "", kwd, flags=re.DOTALL)
+    
+    if kwd.find("**ERROR**") >= 0:
+        # 回退到結構化提取
+        fallback_keywords = []
+        if structured_info["pims_no"]:
+            fallback_keywords.extend(structured_info["pims_no"])
+        if structured_info["project_phase"]:
+            fallback_keywords.extend(structured_info["project_phase"])
+        if structured_info["project_name"]:
+            fallback_keywords.extend(structured_info["project_name"])
+        return ", ".join(fallback_keywords) if fallback_keywords else ""
+    
+    # 後處理：確保結構化資訊被包含
+    llm_keywords = [k.strip() for k in kwd.split(",") if k.strip()]
+    final_keywords = []
+    
+    # 優先添加結構化資訊
+    if structured_info["pims_no"]:
+        final_keywords.extend(structured_info["pims_no"])
+    if structured_info["project_phase"]:
+        final_keywords.extend(structured_info["project_phase"])
+    if structured_info["project_name"]:
+        final_keywords.extend(structured_info["project_name"])
+    
+    # 添加 LLM 提取的關鍵詞，避免重複
+    for keyword in llm_keywords:
+        if keyword.lower() not in [k.lower() for k in final_keywords]:
+            final_keywords.append(keyword)
+    
+    # 如果沒有結構化資訊，直接返回 LLM 結果
+    if not any([structured_info["pims_no"], structured_info["project_phase"], structured_info["project_name"]]):
+        return kwd
+    
+    # 返回合併後的關鍵詞
+    max_keywords = topn + len(structured_info["pims_no"]) + len(structured_info["project_phase"]) + len(structured_info["project_name"])
+    return ", ".join(final_keywords[:max_keywords])
+
+
+def _extract_structured_info(content):
+    """
+    Private helper function to extract structured information using regex patterns.
+    Prefix with underscore to indicate internal use.
+    """
+    structured_info = {
+        "pims_no": [],
+        "project_phase": [],
+        "project_name": []
+    }
+    
+    # 1. 提取 PIMS 編號
+    pims_patterns = [
+        r'PIMS[-\s]?(\d{6})',  # PIMS-315392, PIMS 315392, PIMS315392
+        r'PIMS[-\s]?(\d{5})',  # PIMS-23095, PIMS 23095
+    ]
+    
+    for pattern in pims_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            pims_full = f"PIMS-{match}"
+            if pims_full not in structured_info["pims_no"]:
+                structured_info["pims_no"].append(pims_full)
+    
+    # 2. 提取專案階段
+    phase_patterns = [
+        r'\b(DVT\d+(?:\.\d+)?)\b',  # DVT1, DVT1.0, DVT2, etc.
+        r'\b(EVT\d*)\b',            # EVT, EVT1, EVT2
+        r'\b(PVT\d*)\b',            # PVT, PVT1, PVT2
+        r'\b(MP\d*)\b',             # MP, MP1, MP2
+        r'\b(proto\d*)\b',          # proto, proto1
+        r'\b(pilot\d*)\b',          # pilot, pilot1
+    ]
+    
+    for pattern in phase_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            if match.upper() not in [p.upper() for p in structured_info["project_phase"]]:
+                structured_info["project_phase"].append(match.upper())
+    
+    # 3. 提取專案名稱
+    project_name_patterns = [
+        r'\b([A-Z][a-z]+\d+)\b',     # Sanctuary18, KDF60
+        r'\b([A-Z]{3,}[\d]*)\b',     # KDK, KDF
+        r'\b([A-Z][a-z]{2,})\b',     # Sanctuary
+    ]
+    
+    # 從標題或特定上下文中提取
+    lines = content.split('\n')
+    for line in lines[:10]:  # 檢查前10行
+        line = line.strip()
+        if 'PIMS' in line or any(phase in line.upper() for phase in ['DVT', 'EVT', 'PVT', 'MP']):
+            for pattern in project_name_patterns:
+                matches = re.findall(pattern, line)
+                for match in matches:
+                    exclude_words = ['Dell', 'Customer', 'Communication', 'Confidential', 
+                                   'Global', 'Marketing', 'DVT', 'EVT', 'PVT', 'PIMS']
+                    if (match not in exclude_words and 
+                        match.lower() not in [p.lower() for p in structured_info["project_name"]] and
+                        len(match) >= 3):
+                        structured_info["project_name"].append(match)
+    
+    return structured_info
 
 
 def question_proposal(chat_mdl, content, topn=3):
@@ -367,6 +505,9 @@ Output:
     return "\n".join([a for a in re.sub(r"(^Output:|\n+)", "", ans, flags=re.DOTALL).split("===") if a.strip()])
 
 
+''' 
+--- disable for enhance content tagging ---
+
 def content_tagging(chat_mdl, content, all_tags, examples, topn=3):
     prompt = f"""
 Role: You're a text analyzer.
@@ -432,6 +573,257 @@ Output:
             pass
     return res
 
+
+'''
+
+# new function - content tagging with content and file name - by Mage - 6/3/2025
+
+def content_tagging(chat_mdl, content, all_tags, examples, topn=3):
+    """
+    為文本內容進行標籤分配，自動整合檔名信息進行分析
+    
+    Args:
+        chat_mdl: 聊天模型實例
+        content: 要打標籤的文本內容
+        all_tags: 所有可用的標籤集合
+        examples: 包含範例文本和對應標籤的示例數據
+        topn: 要返回的最相關標籤數量，預設為3個
+    
+    Returns:
+        dict: 標籤和相關性分數的字典
+    """
+    
+    # 嘗試從 content 或上下文中提取檔名信息
+    filename_info = _extract_filename_from_context(content)
+    
+    # 準備分析的文本
+    analysis_text = content
+    has_filename = False
+    
+    # 如果找到檔名信息，將其整合到分析中
+    if filename_info:
+        has_filename = True
+        analysis_text = f"Document filename: {filename_info}\n\nDocument content:\n{content}"
+    
+    prompt = f"""
+Role: You're a text analyzer.
+
+Task: Tag (put on some labels) to a given piece of text content based on the examples and the entire tag set.
+
+Steps::
+  - Comprehend the tag/label set.
+  - Comprehend examples which all consist of both text content and assigned tags with relevance score in format of JSON.
+  - Summarize the text content, and tag it with top {topn} most relevant tags from the set of tag/label and the corresponding relevance score.
+
+Requirements
+  - The tags MUST be from the tag set.
+  - The output MUST be in JSON format only, the key is tag and the value is its relevance score.
+  - The relevance score must be range from 1 to 10.
+  - Keywords ONLY in output."""
+    
+    # 如果有檔名信息，在要求中加入說明
+    if has_filename:
+        prompt += """
+  - Consider both the document filename and content when assigning tags.
+  - The filename may provide additional context about the document's topic or category."""
+
+    prompt += f"""
+
+# TAG SET
+{", ".join(all_tags)}
+
+"""
+    for i, ex in enumerate(examples):
+        prompt += """
+# Examples {}
+### Text Content
+{}
+
+Output:
+{}
+
+        """.format(i, ex["content"], json.dumps(ex[TAG_FLD], indent=2, ensure_ascii=False))
+
+    prompt += f"""
+# Real Data
+### Text Content
+{analysis_text}
+
+"""
+    msg = [{"role": "system", "content": prompt}, {"role": "user", "content": "Output: "}]
+    _, msg = message_fit_in(msg, chat_mdl.max_length)
+    kwd = chat_mdl.chat(prompt, msg[1:], {"temperature": 0.5})
+    if isinstance(kwd, tuple):
+        kwd = kwd[0]
+    kwd = re.sub(r"^.*</think>", "", kwd, flags=re.DOTALL)
+    if kwd.find("**ERROR**") >= 0:
+        raise Exception(kwd)
+
+    try:
+        obj = json_repair.loads(kwd)
+    except json_repair.JSONDecodeError:
+        try:
+            result = kwd.replace(prompt[:-1], "").replace("user", "").replace("model", "").strip()
+            result = "{" + result.split("{")[1].split("}")[0] + "}"
+            obj = json_repair.loads(result)
+        except Exception as e:
+            logging.exception(f"JSON parsing error: {result} -> {e}")
+            raise e
+    res = {}
+    for k, v in obj.items():
+        try:
+            res[str(k)] = int(v)
+        except Exception:
+            pass
+    return res
+
+
+def _extract_filename_from_context(content):
+    """
+    從內容或可能的上下文中提取檔名信息
+    這個函數會嘗試多種方式來獲取檔名，確保不影響原有功能
+    
+    Args:
+        content: 文本內容
+        
+    Returns:
+        str: 清理後的檔名信息，如果沒有找到則返回None
+    """
+    import re
+    import os
+    import inspect
+    
+    # 方法1: 檢查是否在內容中已經包含檔名信息
+    filename_patterns = [
+        r'filename[:\s]+([^\n\r]+)',
+        r'file[:\s]+([^\n\r]+\.[a-zA-Z]{2,4})',
+        r'document[:\s]+([^\n\r]+\.[a-zA-Z]{2,4})',
+    ]
+    
+    for pattern in filename_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            return _clean_filename(match.group(1).strip())
+    
+    # 方法2: 嘗試從調用堆疊中獲取文檔相關信息
+    try:
+        frame = inspect.currentframe()
+        while frame:
+            frame = frame.f_back
+            if not frame:
+                break
+                
+            # 檢查局部變量中是否有文檔相關信息
+            local_vars = frame.f_locals
+            
+            # 常見的變檔名變量名
+            filename_vars = ['filename', 'file_name', 'doc_name', 'document_name', 
+                           'name', 'fname', 'file', 'document']
+            
+            for var_name in filename_vars:
+                if var_name in local_vars:
+                    value = local_vars[var_name]
+                    if isinstance(value, str) and value.strip():
+                        # 檢查是否看起來像檔名
+                        if '.' in value or len(value) > 3:
+                            return _clean_filename(value)
+            
+            # 檢查是否有文檔對象
+            doc_vars = ['doc', 'd', 'document', 'bx', 'chunk']
+            for var_name in doc_vars:
+                if var_name in local_vars:
+                    doc_obj = local_vars[var_name]
+                    if hasattr(doc_obj, 'get'):
+                        # 嘗試從字典或對象中獲取檔名
+                        possible_names = ['name', 'filename', 'file_name', 'docnm_kwd', 'title']
+                        for name_key in possible_names:
+                            if isinstance(doc_obj, dict) and name_key in doc_obj:
+                                filename = doc_obj[name_key]
+                                if isinstance(filename, str) and filename.strip():
+                                    return _clean_filename(filename)
+                    elif hasattr(doc_obj, 'name'):
+                        if isinstance(doc_obj.name, str) and doc_obj.name.strip():
+                            return _clean_filename(doc_obj.name)
+                            
+    except Exception:
+        # 如果在檢查過程中出現任何錯誤，忽略並繼續
+        pass
+    
+    return None
+
+
+def _clean_filename(filename):
+    """
+    清理檔名，提取有用的信息
+    
+    Args:
+        filename: 原始檔名
+        
+    Returns:
+        str: 清理後的檔名信息
+    """
+    import os
+    import re
+    
+    if not filename or not isinstance(filename, str):
+        return None
+        
+    filename = filename.strip()
+    if not filename:
+        return None
+    
+    # 去除路徑和副檔名
+    base_filename = os.path.splitext(os.path.basename(filename))[0]
+    
+    # 如果檔名太短或看起來不像有意義的名稱，返回None
+    if len(base_filename) < 2:
+        return None
+        
+    # 清理檔名：替換常見分隔符為空格
+    clean_filename = base_filename.replace('_', ' ').replace('-', ' ').replace('.', ' ')
+    
+    # 移除多餘的空格
+    clean_filename = re.sub(r'\s+', ' ', clean_filename).strip()
+    
+    # 如果清理後的檔名太短，返回None
+    if len(clean_filename) < 3:
+        return None
+    
+    return clean_filename
+
+
+def _enhance_examples_with_filename(examples):
+    """
+    為範例數據添加檔名信息（如果可用）
+    這個函數會嘗試從範例中提取檔名信息並格式化
+    
+    Args:
+        examples: 原始範例數據
+        
+    Returns:
+        list: 可能包含檔名信息的範例數據
+    """
+    enhanced_examples = []
+    
+    for ex in examples:
+        enhanced_ex = ex.copy()
+        
+        # 檢查範例中是否有檔名相關信息
+        filename_keys = ['filename', 'file_name', 'doc_name', 'document_name', 'name']
+        filename_found = None
+        
+        for key in filename_keys:
+            if key in ex and isinstance(ex[key], str) and ex[key].strip():
+                filename_found = _clean_filename(ex[key])
+                break
+        
+        # 如果找到檔名，將其加入到內容中
+        if filename_found:
+            enhanced_ex["content"] = f"Document filename: {filename_found}\n\nDocument content:\n{ex['content']}"
+        
+        enhanced_examples.append(enhanced_ex)
+    
+    return enhanced_examples
 
 def vision_llm_describe_prompt(page=None) -> str:
     prompt_en = """
