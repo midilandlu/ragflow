@@ -212,22 +212,24 @@ Requirements:
 
 def keyword_extraction(chat_mdl, content, topn=3):
     """
-    Enhanced keyword extraction for technical documents.
+    Enhanced keyword extraction for laptop mechanical design documents.
     Maintains compatibility with original function signature.
-    Automatically extracts PIMS numbers, project phases, and project names.
+    Automatically extracts PIMS numbers (6-digit only), project phases, and project names.
     """
     
     # 預先提取結構化資訊
     structured_info = _extract_structured_info(content)
     
-    # 構建增強的提示詞
+    # 構建專門針對筆記型電腦機構設計的提示詞
     prompt = f"""
-Role: You're a text analyzer specializing in technical and engineering documents.
+Role: You're a text analyzer specializing in laptop mechanical design and engineering documents.
 Task: extract the most important keywords/phrases of a given piece of text content.
 Requirements:
   - Summarize the text content, and give top {topn} important keywords/phrases.
-  - PRIORITY: Always include PIMS numbers (PIMS-XXXXXX), project phases (DVT1/DVT2/MP/EVT/PVT), and project names if found.
-  - Focus on technical components, issues, and engineering terms.
+  - PRIORITY: Always include PIMS numbers (PIMS-XXXXXX, 6-digit only), project phases (DVT1/DVT2/MP/EVT/PVT), and project names if found.
+  - Focus on laptop mechanical design components, structural issues, thermal solutions, and mechanical engineering terms.
+  - Include laptop-specific terminology: hinges, chassis, palmrest, keyboard deck, bottom case, thermal modules, fans, heat pipes, etc.
+  - Prioritize mechanical design issues: tolerances, gaps, fitment, assembly, disassembly, structural integrity, vibration, drop test results.
   - The keywords MUST be in language of the given piece of text content.
   - The keywords are delimited by ENGLISH COMMA.
   - Keywords ONLY in output.
@@ -283,7 +285,7 @@ Requirements:
 def _extract_structured_info(content):
     """
     Private helper function to extract structured information using regex patterns.
-    Prefix with underscore to indicate internal use.
+    Fixed to properly handle PIMS numbers (exact 6-digit format) and PDF special characters.
     """
     structured_info = {
         "pims_no": [],
@@ -291,10 +293,9 @@ def _extract_structured_info(content):
         "project_name": []
     }
     
-    # 1. 提取 PIMS 編號
+    # 1. 提取 PIMS 編號 - 精確匹配6碼數字，支援PDF中的特殊連字符
     pims_patterns = [
-        r'PIMS[-\s]?(\d{6})',  # PIMS-315392, PIMS 315392, PIMS315392
-        r'PIMS[-\s]?(\d{5})',  # PIMS-23095, PIMS 23095
+        r'PIMS[-\s\u2010-\u2015]?(\d{6})(?!\d)',  # 精確6碼數字，包含各種連字符和空格
     ]
     
     for pattern in pims_patterns:
@@ -320,14 +321,14 @@ def _extract_structured_info(content):
             if match.upper() not in [p.upper() for p in structured_info["project_phase"]]:
                 structured_info["project_phase"].append(match.upper())
     
-    # 3. 提取專案名稱
+    # 3. 提取專案名稱 - 針對筆記型電腦專案優化
     project_name_patterns = [
         r'\b([A-Z][a-z]+\d+)\b',     # Sanctuary18, KDF60
-        r'\b([A-Z]{3,}[\d]*)\b',     # KDK, KDF
-        r'\b([A-Z][a-z]{2,})\b',     # Sanctuary
+        r'\b([A-Z]{2,}[\d]*)\b',     # KDK, KDF, XPS, Inspiron
+        r'\b([A-Z][a-z]{2,})\b',     # Sanctuary, Latitude, Precision
     ]
     
-    # 從標題或特定上下文中提取
+    # 從標題或特定上下文中提取，針對筆記型電腦專案名稱
     lines = content.split('\n')
     for line in lines[:10]:  # 檢查前10行
         line = line.strip()
@@ -335,10 +336,16 @@ def _extract_structured_info(content):
             for pattern in project_name_patterns:
                 matches = re.findall(pattern, line)
                 for match in matches:
+                    # 排除常見詞彙，但保留筆記型電腦相關術語
                     exclude_words = ['Dell', 'Customer', 'Communication', 'Confidential', 
-                                   'Global', 'Marketing', 'DVT', 'EVT', 'PVT', 'PIMS']
+                                   'Global', 'Marketing', 'DVT', 'EVT', 'PVT', 'PIMS',
+                                   'Document', 'Report', 'Analysis', 'Test', 'Design']
+                    # 筆記型電腦相關專案名稱通常保留
+                    laptop_related = ['XPS', 'Inspiron', 'Latitude', 'Precision', 'Alienware', 
+                                    'Vostro', 'OptiPlex', 'Sanctuary', 'KDF', 'KDK', 'TAISOL']
+                    
                     if (match not in exclude_words and 
-                        match.lower() not in [p.lower() for p in structured_info["project_name"]] and
+                        (match in laptop_related or match.lower() not in [p.lower() for p in structured_info["project_name"]]) and
                         len(match) >= 3):
                         structured_info["project_name"].append(match)
     
