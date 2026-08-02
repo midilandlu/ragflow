@@ -14,7 +14,13 @@
 # Usage (run inside WSL2, from any directory):
 #   bash scripts/wsl_start_ragflow.sh
 #
-# Safe to re-run: already-running components are left alone.
+# Safe to re-run: dependencies (Python + npm) and the frontend source mirror
+# are always re-synced (cheap no-ops when nothing changed), but an
+# already-running backend/frontend process is left alone -- it won't pick up
+# new *backend* code or dependency changes until restarted. Use
+# wsl_restart_ragflow.sh after a `git pull`/merge, or after editing backend
+# Python code, to force that restart. Frontend edits hot-reload live and
+# don't need a restart.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,16 +68,15 @@ for _ in $(seq 1 30); do
 done
 
 # ---------------------------------------------------------------------------
-# 2. Python venv (created once, on native fs)
+# 2. Python venv (native fs). Always re-synced: after `git pull` /
+# `git merge upstream/main` changes pyproject.toml or uv.lock, this is what
+# picks up new/updated dependencies. `uv sync` is a no-op (a couple seconds)
+# when nothing changed, so there's no real cost to always running it.
 # ---------------------------------------------------------------------------
-if [ ! -x "$VENV_DIR/bin/python" ]; then
-  echo "[setup] creating Python venv at $VENV_DIR (first run, several minutes)"
-  command -v uv >/dev/null 2>&1 || pipx install uv
-  UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
-  ( cd "$REPO_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_DIR" "$UV_BIN" sync --python 3.13 --frozen )
-else
-  echo "[ok]    Python venv already exists"
-fi
+UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
+[ -x "$UV_BIN" ] || pipx install uv
+echo "[sync]  uv sync (python deps)"
+( cd "$REPO_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_DIR" "$UV_BIN" sync --python 3.13 --frozen )
 
 # ---------------------------------------------------------------------------
 # 3. Backend: task_executor + ragflow_server
@@ -106,18 +111,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Frontend: mirror web/ to native fs, npm install once, then vite dev
+# 4. Frontend: mirror web/ to native fs, then npm install.
+#
+# The mirror step always runs, so source edits on the Windows side (git pulls
+# or your own local edits) reach the native copy every time. If the dev
+# server below is already running, Vite's file watcher (native fs, so real
+# inotify events work) picks up the changed files and hot-reloads the page
+# automatically -- no restart needed for plain frontend source edits.
+#
+# `npm install` always runs too so a `package.json`/`package-lock.json`
+# change from a pull is picked up; like uv sync, it's a quick no-op when the
+# lockfile hasn't changed.
 # ---------------------------------------------------------------------------
 mkdir -p "$WEB_NATIVE_DIR"
 rsync -a --delete --exclude node_modules --exclude dist --exclude .git \
   "$REPO_ROOT/web/" "$WEB_NATIVE_DIR/"
 
-if [ ! -d "$WEB_NATIVE_DIR/node_modules" ]; then
-  echo "[setup] npm install in $WEB_NATIVE_DIR (first run)"
-  ( cd "$WEB_NATIVE_DIR" && npm install )
-else
-  echo "[ok]    node_modules already installed"
-fi
+echo "[sync]  npm install (frontend deps)"
+( cd "$WEB_NATIVE_DIR" && npm install )
 
 if pgrep -f "vite --host" >/dev/null 2>&1; then
   echo "[ok]    frontend dev server already running"

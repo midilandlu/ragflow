@@ -15,9 +15,69 @@ bash scripts/wsl_start_ragflow.sh
 
 Then open the URL it prints (frontend defaults to `http://localhost:9222`).
 To stop the backend/frontend processes: `bash scripts/wsl_stop_ragflow.sh`.
+After a `git pull`/merge, or after editing backend Python code, use
+`bash scripts/wsl_restart_ragflow.sh` instead (see "Syncing updates" below).
 
-The script is idempotent - safe to re-run any time (e.g. after a reboot, or
-after pulling new frontend code) and it skips whatever is already running.
+`wsl_start_ragflow.sh` is idempotent and safe to re-run any time (e.g. after
+a reboot): base services and already-running backend/frontend processes are
+left alone, but Python deps (`uv sync`), npm deps (`npm install`), and the
+frontend source mirror are always re-synced on every run (all cheap no-ops
+when nothing changed).
+
+## Syncing updates from origin/upstream and relaunching
+
+Remote setup on this machine: `origin` = your fork
+(`https://github.com/midilandlu/ragflow.git`), `upstream` = the official
+repo (`git@github.com:infiniflow/ragflow.git`).
+
+```bash
+# 1. pull in upstream's latest (do this on main, or rebase your feature
+#    branch onto it -- pick whichever matches your usual git workflow)
+git fetch upstream
+git checkout main
+git merge upstream/main          # or: git rebase upstream/main
+git push origin main             # keep your fork's main in sync (optional)
+
+# 2. if you were on a feature branch, bring it up to date too
+git checkout your-feature-branch
+git rebase main                  # or: git merge main
+
+# 3. relaunch with the new code + dependencies
+bash scripts/wsl_restart_ragflow.sh
+```
+
+`wsl_restart_ragflow.sh` stops the backend/frontend, re-runs `uv sync` and
+`npm install` (so a bumped `pyproject.toml`/`uv.lock`/`package.json` is
+picked up), re-mirrors `web/` to the native copy, and starts everything
+again. Base services (MySQL/Redis/MinIO/Elasticsearch) are untouched --
+nothing about a code/dependency update requires restarting those, and any
+DB schema migration RAGFlow needs runs automatically on backend startup
+the same way it would in the Docker setup.
+
+## Testing your own local changes
+
+- **Frontend (`web/src/**`, styles, etc.):** just save the file. Every run
+  of `wsl_start_ragflow.sh` re-mirrors `web/` to `~/ragflow-web` on native
+  fs, and if you want the change picked up *without* re-running the script,
+  edit directly inside `~/ragflow-web` (e.g. via VS Code's "WSL" remote
+  extension pointed at that path) -- Vite's dev server watches that native
+  directory and hot-reloads the browser automatically, no restart needed.
+  If you edited the Windows-side checkout instead, re-run
+  `bash scripts/wsl_start_ragflow.sh` to sync the change over; the already
+  running dev server then hot-reloads it.
+- **Backend (`api/`, `rag/`, etc.):** the Python backend has no
+  auto-reload, and it reads source directly from the Windows-side
+  checkout, so a saved `.py` change is not picked up by the already-running
+  process. Run `bash scripts/wsl_restart_ragflow.sh` to restart it.
+- **Automated tests:** the scripts only install the base dependency set
+  (`uv sync --frozen`, no groups), so `pytest` isn't in the venv yet the
+  first time. One-time: `UV_PROJECT_ENVIRONMENT=~/.venvs/ragflow uv sync
+  --python 3.13 --group test --frozen && UV_PROJECT_ENVIRONMENT=~/.venvs/ragflow
+  uv pip install sdk/python --group test` (from the repo root, inside WSL2 --
+  mirrors the official from-source guide's test setup). After that,
+  `UV_PROJECT_ENVIRONMENT=~/.venvs/ragflow uv run pytest <path>` exercises
+  the same MySQL/Redis/MinIO/Elasticsearch this dev stack uses -- no
+  separate test environment needed, just have the base services running.
 
 ## Why this exists
 
