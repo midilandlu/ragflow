@@ -199,6 +199,58 @@ repeatable part.
 
 - **`wsl --update` failing with `0x8024500c`** - see step 1 above.
 
+## FAQ
+
+**Editing from VS Code: open `~/ragflow` via Remote-WSL (needs the
+Microsoft "WSL" extension installed once; File > Open Folder in that remote
+window). This is the git-tracked source (same files as the Windows-side
+`D:\...` checkout, just accessed through WSL2 instead of DrvFs) and is the
+right place for both backend and frontend editing:**
+
+- **Backend (`api/`, `rag/`, etc.):** there's only one copy of this code -
+  editing it from this VS Code window (or from Windows directly) changes
+  the same file either way. After saving, run
+  `bash scripts/wsl_restart_ragflow.sh` to pick the change up (no
+  auto-reload).
+- **Frontend (`web/`):** editing it here is fine too, but remember the
+  running dev server actually watches the separate native mirror at
+  `~/ragflow-web` (see the DrvFs gotcha above), not `~/ragflow/web`
+  directly. A save here is **not** picked up live - it needs
+  `bash scripts/wsl_start_ragflow.sh` to re-sync (a few seconds), which
+  then triggers the browser's hot-reload once the mirror is updated. If you
+  want zero-latency hot-reload while iterating on UI, open a *second*
+  VS Code Remote-WSL window directly on `~/ragflow-web` and edit there
+  instead - just remember to `rsync -a --exclude node_modules
+  ~/ragflow-web/ ~/ragflow/web/` (or copy the specific files) back into the
+  git-tracked checkout before committing, since `~/ragflow-web` itself is
+  not a git repo and gets overwritten (`rsync --delete`) on the next
+  `wsl_start_ragflow.sh` run.
+
+**Does WSL2 need to be manually started after a Windows reboot?**
+
+Not explicitly - WSL2 starts lazily the moment something touches it
+(opening the "Ubuntu-24.04" app from the Start menu, running `wsl` in a
+terminal, or reopening the VS Code Remote-WSL window). There's no separate
+"turn WSL on" step.
+
+Once the WSL2 instance is up, `systemd` (enabled via `/etc/wsl.conf`,
+`[boot] systemd=true`) starts automatically inside it, and MySQL, Redis,
+MinIO, and Elasticsearch all come up on their own because they were
+`systemctl enable`d - no command needed for those four.
+
+What does **not** come back on its own: `task_executor.py`,
+`ragflow_server.py`, and the Vite dev server. Those were started as plain
+background processes (not systemd units), so after any reboot - or after a
+`wsl --shutdown` - run:
+
+```bash
+bash scripts/wsl_start_ragflow.sh
+```
+
+once to bring the app itself back up (the base services will already be
+running by the time you get to this, so the script just skips straight to
+starting these three).
+
 ## What to hand off / keep in sync
 
 If you're onboarding another person or agent (Codex, another Claude Code
