@@ -2,6 +2,12 @@
 
 Use this file as the local operating guide for the current codebase. Prefer the code and the current CLAUDE.md over any older convention or remembered project shape.
 
+**Scope note:** this file and `CLAUDE.md` are local/origin-only - they apply to local development and this fork's `main`, and are never pushed to `upstream` (`infiniflow/ragflow`). See `scripts/wsl_dev_README.md`'s "Push policy" section for the full rule.
+
+## Local dev environment
+
+If Docker is unavailable in your environment, check `scripts/` for a documented native alternative (WSL2-based, no containers) before assuming the repo can't run without it.
+
 ## Core Stance
 - Treat legacy code as liability, not as a compatibility target.
 - Prefer deletion over shims, deprecated branches, wrapper APIs, and dual-track migration notes.

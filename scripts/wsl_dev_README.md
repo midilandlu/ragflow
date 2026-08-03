@@ -46,10 +46,18 @@ locally** (i.e. actually run against this dev stack, not just written)
 gets pushed to `upstream`, normally via a PR opened against
 `infiniflow/ragflow`.
 
+**Extended (2026-08-03):** the same rule covers the root `AGENTS.md` and
+`CLAUDE.md` files. Changes to those - including the one-line pointer to
+this directory added under "Local dev environment" - are local/`origin`-
+only (apply to local development and this fork's `main`); they are never
+carried into an `upstream` PR. If a future PR to `infiniflow/ragflow`
+happens to touch `AGENTS.md`/`CLAUDE.md` for an unrelated reason, strip any
+local-environment-specific content back out first.
+
 If you're Codex, another Claude Code session, or a colleague picking this
-up: follow the same rule -- commit/push local tooling and environment docs
-to `origin`, and only send finished, locally-tested application code
-toward `upstream`.
+up: follow the same rule -- commit/push local tooling, environment docs,
+and `AGENTS.md`/`CLAUDE.md` changes to `origin`, and only send finished,
+locally-tested application code toward `upstream`.
 
 ## Syncing updates from origin/upstream and relaunching
 
