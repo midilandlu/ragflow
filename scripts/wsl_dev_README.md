@@ -227,10 +227,35 @@ repeatable part.
   up the Go backend instead/also, this doesn't apply.
 
 - **`fatal: not a git repository` in the backend logs, `RAGFlow version:
-  unknown`.** Cosmetic only. Caused by this being a git *worktree* whose
-  `.git` file contains a Windows-style absolute path
+  unknown`.** Caused by this being a git *worktree* whose `.git` file
+  contains a Windows-style absolute path
   (`gitdir: D:/ragflow/.git/worktrees/...`), which Linux git run from
-  inside WSL2 can't resolve. Doesn't affect functionality.
+  inside WSL2 can't resolve. Cosmetic only - doesn't affect functionality.
+  **Fixed as of 2026-08-03:** `wsl_start_ragflow.sh` now regenerates a
+  `VERSION` file at repo root on every run (step 2), the same mechanism the
+  official Docker build uses (bakes it in at image build time instead of
+  shelling out to git at runtime - see `common/versions.py`). It calls
+  `git.exe` (Windows git, reachable via WSL2 interop) instead of WSL's own
+  git, since `git.exe` resolves the Windows-style `gitdir:` path fine. If
+  you ever see `unknown` again, `git.exe` probably isn't on PATH inside
+  WSL2 (check `command -v git.exe`) - the script falls back to plain `git`
+  in that case, which will reproduce this failure.
+
+- **Frontend dev server (Vite) can silently die right after
+  `wsl_start_ragflow.sh` finishes**, even though its log shows `VITE ...
+  ready` and the script reports success. Seen 2026-08-03: `nohup npm run
+  dev > log 2>&1 & disown` inside the script's subshell did **not** survive
+  the parent `wsl -e bash -lc "..."` invocation exiting (unlike the Python
+  backend processes, started the same way, which did survive) - the
+  process was simply gone a few seconds later, no error in its log.
+  Workaround: kill it and relaunch with `setsid` instead of plain
+  backgrounding, e.g. `cd ~/ragflow-web && API_PROXY_SCHEME=python setsid
+  nohup npm run dev > "$LOG_DIR/web_dev.log" 2>&1 < /dev/null & disown`.
+  **Not yet folded into `wsl_start_ragflow.sh` itself** - if you hit this,
+  either apply the `setsid` workaround manually or patch the script's
+  step 5 to match. Always verify with `curl -s -o /dev/null -w '%{http_code}'
+  http://localhost:9222/` (expect `200`) rather than trusting the script's
+  own "started" message.
 
 - **`wsl --update` failing with `0x8024500c`** - see step 1 above.
 

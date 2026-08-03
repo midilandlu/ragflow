@@ -68,7 +68,31 @@ for _ in $(seq 1 30); do
 done
 
 # ---------------------------------------------------------------------------
-# 2. Python venv (native fs). Always re-synced: after `git pull` /
+# 2. VERSION file. common/versions.py reads a VERSION file at repo root if
+# present, only falling back to `git describe` when it's missing -- this
+# mirrors the official Docker build, which bakes VERSION in at image build
+# time (`echo "$version_info" > /ragflow/VERSION` in the Dockerfile) rather
+# than shelling out to git at runtime.
+#
+# We regenerate it here instead of relying on the runtime fallback because a
+# git worktree's `.git` file stores an absolute `gitdir:` path, and this
+# repo's worktree was created from the Windows side, so that path is
+# Windows-style (`D:/ragflow/.git/worktrees/...`). WSL2's own git can't
+# resolve that ("fatal: not a git repository") and get_ragflow_version()
+# silently falls back to "unknown". Windows git (`git.exe`, reachable here
+# via WSL2 interop) resolves the same path fine, so use that instead.
+# ---------------------------------------------------------------------------
+echo "[sync]  VERSION file"
+(
+  cd "$REPO_ROOT"
+  GIT_BIN="git"
+  command -v git.exe >/dev/null 2>&1 && GIT_BIN="git.exe"
+  version_info="$("$GIT_BIN" describe --tags --match='v*' --first-parent --always 2>/dev/null || echo unknown)"
+  echo "$version_info" > "$REPO_ROOT/VERSION"
+)
+
+# ---------------------------------------------------------------------------
+# 3. Python venv (native fs). Always re-synced: after `git pull` /
 # `git merge upstream/main` changes pyproject.toml or uv.lock, this is what
 # picks up new/updated dependencies. `uv sync` is a no-op (a couple seconds)
 # when nothing changed, so there's no real cost to always running it.
@@ -79,7 +103,7 @@ echo "[sync]  uv sync (python deps)"
 ( cd "$REPO_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_DIR" "$UV_BIN" sync --python 3.13 --frozen )
 
 # ---------------------------------------------------------------------------
-# 3. Backend: task_executor + ragflow_server
+# 4. Backend: task_executor + ragflow_server
 # ---------------------------------------------------------------------------
 if pgrep -f "rag/svr/task_executor.py" >/dev/null 2>&1; then
   echo "[ok]    task_executor already running"
@@ -111,7 +135,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Frontend: mirror web/ to native fs, then npm install.
+# 5. Frontend: mirror web/ to native fs, then npm install.
 #
 # The mirror step always runs, so source edits on the Windows side (git pulls
 # or your own local edits) reach the native copy every time. If the dev
