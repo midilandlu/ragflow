@@ -287,10 +287,11 @@ Docker restriction:
 - This directory (`scripts/wsl_start_ragflow.sh`, `wsl_stop_ragflow.sh`,
   `wsl_restart_ragflow.sh`, this README, and `wsl_dev_STATUS.md`) - the
   repeatable part, committed to git so it travels with the branch/PR.
-  `wsl_dev_STATUS.md` in particular is the actual handoff mechanism: it's
-  a living snapshot of current progress with copy-pasteable prompts for
-  wrapping up a session and for picking one up, so the next person or
-  agent doesn't have to reconstruct state from git log/chat history.
+  `wsl_dev_STATUS.md` is a living snapshot of current progress (rewritten
+  each handoff); the "Handoff protocol" section below has the fixed
+  prompt templates for wrapping up a session and for picking one up, so
+  the next person or agent doesn't have to reconstruct state from git
+  log/chat history.
 - The **one-time setup steps** above - not scripted end-to-end (they involve
   `sudo`, package downloads, and one interactive password reset), so they're
   written out narratively rather than as a blind-run script. Turning them
@@ -301,3 +302,41 @@ Docker restriction:
   conflict could silently revert it to docker hostnames).
 - Nothing here is a real secret - every credential in this doc and in
   `conf/service_conf.yaml` is RAGFlow's shared open-source dev default.
+
+## Handoff protocol
+
+These two prompts are the standard template - copy them as-is (or adapt
+lightly) rather than improvising new wording each time, so `wsl_dev_STATUS.md`
+stays a consistent, predictable shape across handoffs regardless of who or
+what agent is writing it.
+
+### Before you stop working (update the STATUS file)
+
+> Before we stop, update `scripts/wsl_dev_STATUS.md`: refresh the "Last
+> updated" block (date, branch, commit, working-tree/sync state), the
+> environment status table (re-check services/processes, don't just copy
+> the old table), summarize what you actually did this session under
+> "What's been done", and update "Known gaps" with anything you didn't
+> finish or newly discovered. Commit it to `origin` only (per the push
+> policy above) and push.
+
+### Picking up (Codex, another Claude Code session, a colleague)
+
+Paste this as your opening prompt:
+
+> You're picking up RAGFlow development in this repo
+> (`D:\ragflow\.claude\worktrees\update-understand-anything-analysis-21479f`
+> or wherever this checkout lives on your machine). Docker is not
+> available here; RAGFlow runs from source against native WSL2 services
+> instead. Before doing anything else:
+> 1. Read `scripts/wsl_dev_README.md` (this file) in full - one-time
+>    setup, gotchas, push policy.
+> 2. Read `scripts/wsl_dev_STATUS.md` for what's already running and
+>    what's left to do.
+> 3. Inside WSL2, run `bash scripts/wsl_start_ragflow.sh` to bring the
+>    dev stack up (it's idempotent - safe even if things are already
+>    running), and verify `http://localhost:9222` loads in a browser.
+> 4. Confirm with me what to work on next based on "Known gaps" /
+>    whatever I tell you directly, then proceed.
+> 5. Before you end your own session, update `wsl_dev_STATUS.md` per the
+>    "Before you stop working" prompt above.

@@ -1,10 +1,13 @@
 # RAGFlow WSL2 dev environment - current status
 
-Living document. Unlike `wsl_dev_README.md` (setup steps, gotchas - rarely
-changes), this file tracks **what state things are actually in right now**.
-Whoever is ending a work session here updates this file before handing off;
-whoever is picking up reads it first. See "Handoff protocol" below for the
-exact prompts to use on both ends.
+Living document. Unlike `wsl_dev_README.md` (setup steps, gotchas, and the
+fixed handoff prompt templates - rarely changes), this file tracks **what
+state things are actually in right now**, and gets fully rewritten each
+handoff. Whoever is ending a work session here updates this file before
+handing off; whoever is picking up reads it first. See
+`wsl_dev_README.md`'s "Handoff protocol" section for the exact prompts to
+use on both ends - they're kept there, not here, specifically so they
+don't get lost or drift when this file's content gets replaced.
 
 ---
 
@@ -66,35 +69,5 @@ To re-verify any of this yourself rather than trust this table, run
 
 ## Handoff protocol
 
-### Before you stop working (update this file)
-
-Give your agent (or do it yourself) a prompt like:
-
-> Before we stop, update `scripts/wsl_dev_STATUS.md`: refresh the "Last
-> updated" block (date, branch, commit, working-tree/sync state), the
-> environment status table (re-check services/processes, don't just copy
-> the old table), summarize what you actually did this session under
-> "What's been done", and update "Known gaps" with anything you didn't
-> finish or newly discovered. Commit it to `origin` only (per the push
-> policy in `wsl_dev_README.md`) and push.
-
-### Picking up (Codex, another Claude Code session, a colleague)
-
-Paste this as your opening prompt:
-
-> You're picking up RAGFlow development in this repo
-> (`D:\ragflow\.claude\worktrees\update-understand-anything-analysis-21479f`
-> or wherever this checkout lives on your machine). Docker is not
-> available here; RAGFlow runs from source against native WSL2 services
-> instead. Before doing anything else:
-> 1. Read `scripts/wsl_dev_README.md` in full (one-time setup, gotchas,
->    push policy).
-> 2. Read `scripts/wsl_dev_STATUS.md` (this file) for what's already
->    running and what's left to do.
-> 3. Inside WSL2, run `bash scripts/wsl_start_ragflow.sh` to bring the
->    dev stack up (it's idempotent - safe even if things are already
->    running), and verify `http://localhost:9222` loads in a browser.
-> 4. Confirm with me what to work on next based on "Known gaps" /
->    whatever I tell you directly, then proceed.
-> 5. Before you end your own session, update this STATUS file per the
->    "Before you stop working" section above.
+See `wsl_dev_README.md`'s "Handoff protocol" section for the standard
+before-stopping and picking-up prompt templates.
