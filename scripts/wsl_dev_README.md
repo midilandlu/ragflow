@@ -6,6 +6,12 @@ development on a Windows machine where Docker Desktop is not available
 [docs/develop/launch_ragflow_from_source.md](../docs/develop/launch_ragflow_from_source.md),
 which assumes Docker is available for the four base services.
 
+**This file rarely changes** (setup steps, gotchas, policy). For what
+state things are actually in *right now* - what's running, what was done
+last session, what's left to do - see
+[`wsl_dev_STATUS.md`](wsl_dev_STATUS.md) instead, including the exact
+handoff prompts to use both when wrapping up and when picking up work.
+
 ## TL;DR
 
 ```bash
@@ -279,8 +285,12 @@ session, etc.) onto this same environment or a fresh machine with the same
 Docker restriction:
 
 - This directory (`scripts/wsl_start_ragflow.sh`, `wsl_stop_ragflow.sh`,
-  this README) - the repeatable part, committed to git so it travels with
-  the branch/PR.
+  `wsl_restart_ragflow.sh`, this README, and `wsl_dev_STATUS.md`) - the
+  repeatable part, committed to git so it travels with the branch/PR.
+  `wsl_dev_STATUS.md` in particular is the actual handoff mechanism: it's
+  a living snapshot of current progress with copy-pasteable prompts for
+  wrapping up a session and for picking one up, so the next person or
+  agent doesn't have to reconstruct state from git log/chat history.
 - The **one-time setup steps** above - not scripted end-to-end (they involve
   `sudo`, package downloads, and one interactive password reset), so they're
   written out narratively rather than as a blind-run script. Turning them
