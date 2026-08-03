@@ -24,6 +24,27 @@ left alone, but Python deps (`uv sync`), npm deps (`npm install`), and the
 frontend source mirror are always re-synced on every run (all cheap no-ops
 when nothing changed).
 
+## Push policy: origin vs. upstream
+
+**Decision (2026-08-03):** this directory (`scripts/wsl_start_ragflow.sh`,
+`wsl_stop_ragflow.sh`, `wsl_restart_ragflow.sh`, this README, and any future
+local-dev-environment tooling/docs like it) is pushed to **`origin`
+only** (`https://github.com/midilandlu/ragflow.git`, this fork). It is
+**never** pushed to **`upstream`** (`git@github.com:infiniflow/ragflow.git`,
+the official repo) -- these are personal/local workarounds for a
+Docker-restricted machine, not something the upstream open-source project
+needs.
+
+Only actual feature/bugfix code that has been completed and **verified
+locally** (i.e. actually run against this dev stack, not just written)
+gets pushed to `upstream`, normally via a PR opened against
+`infiniflow/ragflow`.
+
+If you're Codex, another Claude Code session, or a colleague picking this
+up: follow the same rule -- commit/push local tooling and environment docs
+to `origin`, and only send finished, locally-tested application code
+toward `upstream`.
+
 ## Syncing updates from origin/upstream and relaunching
 
 Remote setup on this machine: `origin` = your fork
