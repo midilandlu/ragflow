@@ -6,7 +6,7 @@ Use this file as the local operating guide for the current codebase. Prefer the 
 
 ## Local dev environment
 
-If Docker is unavailable in your environment, check `scripts/` for a documented native alternative (WSL2-based, no containers) before assuming the repo can't run without it.
+If Docker is unavailable in your environment, check `scripts/` for a documented native alternative (WSL2-based, no containers) before assuming the repo can't run without it. Picking up work on this fork's local dev setup? Read, in order: `scripts/wsl_dev_README.md` (stable reference), `scripts/wsl_dev_STATUS.md` (live snapshot of what's currently running/pending), and `scripts/HANDOFF_CODEX.md` or `scripts/HANDOFF_CLAUDE.md` (whichever matches you - a living handoff note with the "why" context the other two don't carry).
 
 ## Core Stance
 - Treat legacy code as liability, not as a compatibility target.

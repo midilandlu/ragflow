@@ -339,38 +339,62 @@ Docker restriction:
 
 ## Handoff protocol
 
+Three documents, three different jobs - don't collapse them into one:
+
+- **`wsl_dev_STATUS.md`** - objective snapshot, fully rewritten each
+  handoff. "What's running right now, as of when I last checked."
+- **`HANDOFF_CLAUDE.md` / `HANDOFF_CODEX.md`** - a living letter addressed
+  to the next session of that specific agent type, **appended to** (newest
+  entry on top, oldest kept below it), never fully rewritten. This is
+  where the "why" lives: decisions, open threads, things you'd tell a
+  colleague verbally that don't belong in an objective status table. Pick
+  the file matching whichever agent is about to pick this up - if unsure,
+  update both, or at least leave a one-line pointer in the other.
+
 These two prompts are the standard template - copy them as-is (or adapt
-lightly) rather than improvising new wording each time, so `wsl_dev_STATUS.md`
-stays a consistent, predictable shape across handoffs regardless of who or
-what agent is writing it.
+lightly) rather than improvising new wording each time, so both documents
+stay a consistent, predictable shape across handoffs regardless of who or
+what agent is writing them.
 
-### Before you stop working (update the STATUS file)
+### Before you stop working
 
-> Before we stop, update `scripts/wsl_dev_STATUS.md`: refresh the "Last
-> updated" block (date, branch, commit, working-tree/sync state), the
-> environment status table (re-check services/processes, don't just copy
-> the old table), summarize what you actually did this session under
-> "What's been done", and update "Known gaps" with anything you didn't
-> finish or newly discovered. Commit it to `origin` only (per the push
-> policy above) and push.
+> Before we stop:
+> 1. Update `scripts/wsl_dev_STATUS.md`: refresh the "Last updated" block
+>    (date, branch, commit, working-tree/sync state), the environment
+>    status table (re-check services/processes, don't just copy the old
+>    table), summarize what you actually did this session under "What's
+>    been done", and update "Known gaps" with anything you didn't finish
+>    or newly discovered.
+> 2. Add a new `## 🆕 <date> 更新` section at the top of
+>    `scripts/HANDOFF_CLAUDE.md` and/or `scripts/HANDOFF_CODEX.md`
+>    (whichever agent type is likely to pick this up next, or both) with
+>    anything the next session needs to know that isn't just a status
+>    fact - open PRs to watch, uncommitted changes left on purpose,
+>    external blockers, things you tried that didn't work. Don't rewrite
+>    older entries in that file; append above them.
+> 3. Commit both to `origin` only (per the push policy above) and push.
 
 ### Picking up (Codex, another Claude Code session, a colleague)
 
 Paste this as your opening prompt:
 
-> You're picking up RAGFlow development in this repo
-> (`D:\ragflow\.claude\worktrees\update-understand-anything-analysis-21479f`
-> or wherever this checkout lives on your machine). Docker is not
-> available here; RAGFlow runs from source against native WSL2 services
-> instead. Before doing anything else:
+> You're picking up RAGFlow development in this repo/worktree. Docker is
+> not available here; RAGFlow runs from source against native WSL2
+> services instead. Before doing anything else:
 > 1. Read `scripts/wsl_dev_README.md` (this file) in full - one-time
 >    setup, gotchas, push policy.
 > 2. Read `scripts/wsl_dev_STATUS.md` for what's already running and
 >    what's left to do.
-> 3. Inside WSL2, run `bash scripts/wsl_start_ragflow.sh` to bring the
+> 3. Read `scripts/HANDOFF_CLAUDE.md` (if you're Claude Code) or
+>    `scripts/HANDOFF_CODEX.md` (if you're Codex) for the "why" behind
+>    the current state - open threads, decisions, things not yet
+>    committed on purpose.
+> 4. Inside WSL2, run `bash scripts/wsl_start_ragflow.sh` to bring the
 >    dev stack up (it's idempotent - safe even if things are already
->    running), and verify `http://localhost:9222` loads in a browser.
-> 4. Confirm with me what to work on next based on "Known gaps" /
+>    running, and refuses to start if a different worktree's process is
+>    already live), and verify `http://localhost:9222` loads in a
+>    browser.
+> 5. Confirm with me what to work on next based on "Known gaps" /
 >    whatever I tell you directly, then proceed.
-> 5. Before you end your own session, update `wsl_dev_STATUS.md` per the
+> 6. Before you end your own session, update both documents per the
 >    "Before you stop working" prompt above.
