@@ -12,123 +12,137 @@ don't get lost or drift when this file's content gets replaced.
 <!-- AUTO-STATUS:BEGIN (rewritten by wsl_start_ragflow.sh every run -- do not hand-edit this block, edit the prose sections below instead) -->
 **Auto-verified environment** (written by `wsl_start_ragflow.sh` itself, not hand-maintained -- trust this over the prose below if they ever disagree):
 
-- **When:** 2026-08-05T14:42:29+08:00
+- **When:** 2026-08-05T19:23:34+08:00
 - **Worktree:** `/mnt/d/ragflow/.claude/worktrees/ragflow-wsl2-dev-setup-969743`
-- **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @ `c1b6e607c`
+- **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @ `6e92a7cf6`
 - **~/ragflow symlink target:** `/mnt/d/ragflow/.claude/worktrees/ragflow-wsl2-dev-setup-969743`
-- **task_executor.py:** running, pid 33028
-- **ragflow_server.py:** running, pid 33031
-- **vite dev server:** running, pid 33129
+- **task_executor.py:** running, pid 83455
+- **ragflow_server.py:** running, pid 83458
+- **vite dev server:** running, pid 83551
 <!-- AUTO-STATUS:END -->
 
 ---
 
 ## Last updated
 
-- **When:** 2026-08-05
+- **When:** 2026-08-06 (session spanned 2026-08-05 into 2026-08-06)
 - **By:** Claude Code, in worktree
   `D:\ragflow\.claude\worktrees\ragflow-wsl2-dev-setup-969743`, branch
   `claude/local-ragflow-service-check-0ba110`.
 - **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @
-  `65b115ae0` (after fast-forward merging
-  `claude/ragflow-wsl2-dev-setup-969743` into it - this branch had
-  **no `scripts/` directory at all** before that; it was cut from `main`
-  after the point this file previously described, so it never had the
-  WSL dev-setup commits).
-  - The `update-understand-anything-analysis-21479f` worktree (the one
-    `~/ragflow` was pointing at coming into this session) is unchanged/
-    untouched; its backend/frontend were stopped this session in favor of
-    this worktree.
-- **Working tree:** clean except the same pre-existing untracked `VERSION`
-  file (generated, see below).
+  `6e92a7cf6` (pushed to `origin`), **plus one uncommitted change** on top:
+  `api/apps/services/provider_api_service.py` (see "What's been done" #3
+  below) - not yet committed, needs a decision next session.
+- **Working tree:** 2 modified files uncommitted - `provider_api_service.py`
+  (real code change, see #3 below) and this file itself (`wsl_dev_STATUS.md`,
+  this handoff update).
 
 ## Environment status (as of last update)
 
-`~/ragflow` symlink now points at **this** worktree
-(`ragflow-wsl2-dev-setup-969743`); backend + frontend were (re)started from
-here and left **running**.
+`~/ragflow` symlink points at **this** worktree
+(`ragflow-wsl2-dev-setup-969743`). Backend/task_executor/frontend were
+healthy through the end of the session (full stack HTTP 200, including the
+uncommitted `max_tokens` fix below already live in the running backend at
+that point) and then **deliberately stopped** (`bash
+scripts/wsl_stop_ragflow.sh`) as part of this handoff, so the machine
+isn't left running someone else's session unattended. Base services
+(MySQL/Redis/MinIO/Elasticsearch) are left running (systemd-managed,
+shared infrastructure).
 
 | Component | State |
 |---|---|
 | WSL2 distro `Ubuntu-24.04` | installed, C: drive |
-| MySQL / Redis / MinIO / Elasticsearch 8.11.3 | native systemd services, all `active` + `enabled` |
-| Python venv (`~/.venvs/ragflow`) | present, `uv sync --frozen` re-run this session |
-| Frontend native mirror (`~/ragflow-web`) | present, `npm install` re-run, mirrors this worktree's `web/` |
-| `task_executor.py` | **running**, healthy |
-| `ragflow_server.py` | **running**, healthy (`http://127.0.0.1:9380`) |
-| Vite dev server | **running**, healthy (`http://localhost:9222`, `API_PROXY_SCHEME=python`) - started via the now-fixed `setsid` launch, confirmed to survive session exit |
-| Last browser smoke test | passed this session - login page renders (email/password/sign-in fields present), `/api/v1/language`, `/api/v1/auth/login/channels`, `/api/v1/system/config` all return 200, no console errors |
+| MySQL / Redis / MinIO / Elasticsearch 8.11.3 | native systemd services, all `active` + `enabled` (left running) |
+| `task_executor.py` | **stopped** for handoff - was healthy before stopping |
+| `ragflow_server.py` | **stopped** for handoff - was healthy before stopping, including the uncommitted `max_tokens` fix |
+| Vite dev server | **stopped** for handoff - was healthy before stopping |
 
-Run `bash scripts/wsl_start_ragflow.sh` to re-verify rather than trusting
-this table.
+To bring the app back up: `bash scripts/wsl_start_ragflow.sh` (the
+uncommitted `provider_api_service.py` change is still in the working tree,
+so it'll be there when the backend restarts - it's just not in git history
+yet).
 
 ## What's been done this "chapter" of work
 
-1. Confirmed nothing was running (fresh check), then confirmed the user's
-   own `wsl_start_ragflow.sh` run had started `ragflow_server.py` +
-   `task_executor.py` - but from the **other** worktree
-   (`update-understand-anything-analysis-21479f`), because `~/ragflow`
-   still pointed there. Frontend hadn't been started at all yet.
-2. Per user request: found the current worktree's branch
-   (`claude/local-ragflow-service-check-0ba110`) had no `scripts/`
-   directory - fast-forward merged `claude/ragflow-wsl2-dev-setup-969743`
-   into it (clean, zero conflicts, this branch's HEAD was a strict
-   ancestor) to pick up the WSL dev-setup tooling.
-3. Stopped the backend/task_executor running against the old worktree,
-   repointed `~/ragflow` -> this worktree, ran `wsl_start_ragflow.sh`.
-4. **Fixed the frontend-dies-silently bug for real this time**: previous
-   sessions had root-caused it (`npm run dev`'s `stdio: inherit` child
-   keeps the launching pty's stdin, so it dies when that pty closes even
-   with `nohup`/`disown`) and documented a manual `setsid` workaround, but
-   never patched the script. Patched `wsl_start_ragflow.sh` step 5 to use
-   `setsid nohup npm run dev < /dev/null > log 2>&1 &`, verified it now
-   survives a full separate-session restart cycle via a fresh `curl`.
-5. Updated `wsl_dev_README.md`'s gotcha entry to reflect the fix is now
-   actually in the script, not just documented as a manual workaround.
-6. Browser-verified the full stack end-to-end (see table above).
+1. **Worktree/symlink alignment + tooling infra** (see prior entries in git
+   history for full detail): fast-forward merged the WSL dev-setup tooling
+   into this branch, fixed the frontend silently dying after script exit
+   (`setsid` fix), added a worktree-alignment guard and auto-status
+   writeback to `wsl_start_ragflow.sh`, fixed a stop-script race condition.
+   Pushed this tooling to `origin/main` and to the sibling worktree
+   (`update-understand-anything-analysis-21479f`, branch
+   `claude/local-origin-upstream-diff-902ea8`) so both are in sync.
+2. **Fixed a real app bug and sent it upstream**: Tongyi-Qianwen's
+   international DashScope endpoint was hardcoded as
+   `.../compatible-model/v1` instead of `.../compatible-mode/v1` in
+   `api/apps/services/provider_api_service.py` (two places) - confirmed via
+   repo-wide grep that every other reference uses the correct spelling.
+   This caused every model verification call to 404 and blocked saving the
+   provider. Verified locally against a real DashScope account (key
+   rotated by the user after being pasted in chat - **not stored/used by
+   me**). Committed (`fe485eaf4`), pushed to `origin`, and opened
+   **[infiniflow/ragflow#17887](https://github.com/infiniflow/ragflow/pull/17887)**
+   against upstream from a clean cherry-picked branch (confirmed upstream
+   `main` @ `2bee51ca9` still had the typo before opening). PR status not
+   yet checked as of this handoff.
+3. **DeepInfra `Qwen/QwQ-32B` investigation - partially resolved,
+   uncommitted fix pending a decision**:
+   - User reported "No valid response received" / warning-triangle on this
+     model after saving DeepInfra credentials.
+   - Found and fixed a real, broader gap: the health-check call in
+     `verify_api_key()`'s `check_streamly()` didn't set `max_tokens` at
+     all, so it inherited whatever default the provider applies - for some
+     providers/models that default exceeds the model's actual limit
+     (confirmed via direct curl to DeepInfra: unset `max_tokens` defaults
+     to 65536, but QwQ-32B's real `max_total_tokens` is 40960, a hard
+     rejection). Added an explicit small `max_tokens: 16` to that one
+     verification call. **This is a legitimate fix affecting up to 79
+     catalog entries with no configured `max_tokens`** - currently
+     uncommitted in the working tree, needs review/commit next session.
+   - **This did NOT fix the QwQ-32B symptom** - after the fix, the same
+     error persists but now root-caused precisely: it's litellm (installed
+     version `1.84.0`) itself crashing inside `stream_chunk_builder()`
+     with `IndexError: list index out of range` while assembling a
+     completed response from DeepInfra's stream for this model, because
+     none of the buffered chunks ever contain a populated `choices` list.
+     This is a known *class* of litellm bug (unsafe indexing, especially
+     around reasoning-model streaming) seen before for other
+     providers/models (DeepSeek R1 via PR #8009, Vertex Gemini via
+     #28884/#27928, Responses-API via #32051) but **no existing litellm
+     issue/fix found for this specific DeepInfra+QwQ-32B combination**.
+     Not fixable from RAGFlow's side. Workaround: use other DeepInfra
+     models (`Qwen3-14B`, `Qwen3-235B-A22B` confirmed working).
+   - Spawned a background task suggestion (`task_cd383eb7`) to check for a
+     newer litellm release and draft (not auto-submit) a GitHub issue -
+     **still pending, user has not acted on it yet.**
 
 ## Known gaps / not yet done
 
-- **The `wsl_start_ragflow.sh` / `wsl_dev_README.md` / `VERSION`-fix /
-  `setsid`-fix changes above are uncommitted** on
-  `claude/local-ragflow-service-check-0ba110` - push to `origin` per the
-  push policy once reviewed (local dev tooling, not upstream-bound).
+- **Decide on and commit/discard the uncommitted `max_tokens: 16`
+  verification fix** in `provider_api_service.py` (see #3 above) - it's
+  independently useful (fixes a real class of false-negative verification
+  failures) even though it didn't resolve the QwQ-32B issue it was chasing.
+- **QwQ-32B via DeepInfra remains broken** due to the external litellm bug
+  described above - no action possible on our side beyond the pending
+  litellm-version-check / issue-filing background task (`task_cd383eb7`).
+- **Watch [infiniflow/ragflow#17887](https://github.com/infiniflow/ragflow/pull/17887)**
+  (the Tongyi-Qianwen typo fix PR) for review feedback/merge.
 - **Two worktrees still exist with this tooling and will keep diverging**
   (`ragflow-wsl2-dev-setup-969743` and
-  `update-understand-anything-analysis-21479f`) - flagged 2026-08-03,
-  discussed with the user 2026-08-05, three mitigations landed the same
-  day:
-  1. Pushed this tooling to `origin/main` (see below) so *new*
-     branches/worktrees cut after this point inherit it automatically -
-     today's root cause for gap #1 above (this branch was cut from `main`
-     before the tooling existed) can't recur for anything based on current
-     `main`.
-  2. `wsl_start_ragflow.sh` now refuses to start (exit 1, clear error) if
-     `task_executor.py`/`ragflow_server.py` are already running from a
-     *different* worktree's physical path (compares `/proc/<pid>/cwd`
-     against its own `$REPO_ROOT`, both `readlink -f`'d) - this exact
-     scenario silently happened twice before this check existed.
-  3. `wsl_start_ragflow.sh` now auto-writes an `<!-- AUTO-STATUS -->`
-     block at the top of this file every run (worktree, branch/commit,
-     symlink target, process pids) so that part can no longer drift from
-     reality the way the hand-written sections below did.
-  - **Still true, and not fixable by tooling alone:** only one worktree's
-    code can ever be the live one at a time (fixed ports 9380/9222, one
-    `~/ragflow` symlink, one WSL2 instance) - switching which worktree is
-    active is still a manual, explicit step (stop, repoint symlink or `cd`
-    to the other worktree, start).
+  `update-understand-anything-analysis-21479f`) - mitigated (not solved,
+  can't be fully solved by tooling alone) by: pushing this tooling to
+  `origin/main` so new worktrees inherit it automatically; a startup guard
+  in `wsl_start_ragflow.sh` that refuses to start if another worktree's
+  process is already running; and the AUTO-STATUS block above that can't
+  drift from reality. Still true: only one worktree's code can be the live
+  one at a time - switching is still a manual, explicit step.
 - `test` dependency group (`pytest` etc.) is not installed in the venv yet
   - see `wsl_dev_README.md`'s "Testing your own local changes" section for
     the one-time command.
 - No CI/automation for the one-time WSL base-service setup - it's
-  documented narratively in `wsl_dev_README.md`, not scripted end-to-end
-  (see that file's "What to hand off" section for why).
-- Nothing beyond a manual browser smoke test (login page) has been
-  exercised yet - no document upload / chat / agent flow has been tried
-  against this stack.
-- No actual RAGFlow feature/bugfix work has started yet on this branch;
-  everything so far is dev-environment tooling (see the push-policy note:
-  none of this should go to `upstream`).
+  documented narratively in `wsl_dev_README.md`, not scripted end-to-end.
+- Nothing beyond login-page + Model Providers page has been exercised in
+  the browser yet - no document upload / chat / agent flow tried.
 
 ## Handoff protocol
 
