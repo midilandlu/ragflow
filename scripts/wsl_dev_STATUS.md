@@ -12,13 +12,13 @@ don't get lost or drift when this file's content gets replaced.
 <!-- AUTO-STATUS:BEGIN (rewritten by wsl_start_ragflow.sh every run -- do not hand-edit this block, edit the prose sections below instead) -->
 **Auto-verified environment** (written by `wsl_start_ragflow.sh` itself, not hand-maintained -- trust this over the prose below if they ever disagree):
 
-- **When:** 2026-08-05T14:06:21+08:00
+- **When:** 2026-08-05T14:42:29+08:00
 - **Worktree:** `/mnt/d/ragflow/.claude/worktrees/ragflow-wsl2-dev-setup-969743`
-- **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @ `65b115ae0`
+- **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @ `c1b6e607c`
 - **~/ragflow symlink target:** `/mnt/d/ragflow/.claude/worktrees/ragflow-wsl2-dev-setup-969743`
-- **task_executor.py:** running, pid 22679
-- **ragflow_server.py:** running, pid 22682
-- **vite dev server:** running, pid 24038
+- **task_executor.py:** running, pid 33028
+- **ragflow_server.py:** running, pid 33031
+- **vite dev server:** running, pid 33129
 <!-- AUTO-STATUS:END -->
 
 ---
