@@ -241,21 +241,22 @@ repeatable part.
   WSL2 (check `command -v git.exe`) - the script falls back to plain `git`
   in that case, which will reproduce this failure.
 
-- **Frontend dev server (Vite) can silently die right after
-  `wsl_start_ragflow.sh` finishes**, even though its log shows `VITE ...
-  ready` and the script reports success. Seen 2026-08-03: `nohup npm run
-  dev > log 2>&1 & disown` inside the script's subshell did **not** survive
-  the parent `wsl -e bash -lc "..."` invocation exiting (unlike the Python
-  backend processes, started the same way, which did survive) - the
-  process was simply gone a few seconds later, no error in its log.
-  Workaround: kill it and relaunch with `setsid` instead of plain
-  backgrounding, e.g. `cd ~/ragflow-web && API_PROXY_SCHEME=python setsid
-  nohup npm run dev > "$LOG_DIR/web_dev.log" 2>&1 < /dev/null & disown`.
-  **Not yet folded into `wsl_start_ragflow.sh` itself** - if you hit this,
-  either apply the `setsid` workaround manually or patch the script's
-  step 5 to match. Always verify with `curl -s -o /dev/null -w '%{http_code}'
-  http://localhost:9222/` (expect `200`) rather than trusting the script's
-  own "started" message.
+- **Frontend dev server (Vite) could silently die right after
+  `wsl_start_ragflow.sh` finished**, even though its log showed `VITE ...
+  ready` and the script reported success. Seen 2026-08-03 and again
+  2026-08-05: plain `nohup npm run dev > log 2>&1 & disown` inside the
+  script's subshell did **not** survive the parent `wsl -e bash -lc "..."`
+  invocation exiting (unlike the Python backend processes, started the
+  same way, which did survive) - the process was simply gone a few
+  seconds later, no error in its log. Root cause: `npm run dev` spawns
+  `vite` with `stdio: inherit`, so it still holds the launching pty's
+  stdin; when that pty closes, the process dies despite `nohup`/`disown`.
+  **Fixed 2026-08-05** - `wsl_start_ragflow.sh` step 5 now launches it with
+  `setsid nohup npm run dev < /dev/null > "$LOG_DIR/web_dev.log" 2>&1 &`
+  (own session + detached stdin), confirmed to survive across separate WSL
+  invocations. If you ever see this again despite the fix being in place,
+  verify with `curl -s -o /dev/null -w '%{http_code}' http://localhost:9222/`
+  (expect `200`) rather than trusting the script's own "started" message.
 
 - **`wsl --update` failing with `0x8024500c`** - see step 1 above.
 

@@ -24,7 +24,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# `readlink -f` (not just `cd && pwd`) so this is the physical path even when
+# invoked through the `~/ragflow` symlink -- otherwise it can't be compared
+# against /proc/<pid>/cwd (also physical) or another invocation's REPO_ROOT
+# below without false mismatches between "the same directory, two spellings".
+REPO_ROOT="$(readlink -f "$SCRIPT_DIR/..")"
 
 # node_modules on a Windows drive mounted into WSL2 (DrvFs, i.e. any path
 # under /mnt/*) is extremely slow / can hang npm install and uv sync (dropped
@@ -43,6 +47,45 @@ echo "== repo root : $REPO_ROOT"
 echo "== venv      : $VENV_DIR"
 echo "== web (native mirror): $WEB_NATIVE_DIR"
 echo
+
+# ---------------------------------------------------------------------------
+# 0. Worktree-alignment guard. This machine can have this same dev-tooling
+# checked out in more than one git worktree (see wsl_dev_README.md's push-
+# policy note) -- but only ONE worktree's backend/frontend can ever be "the"
+# running dev stack at a time: fixed ports (9380/9222), one `~/ragflow`
+# symlink, one WSL2 instance. Starting from a worktree other than whichever
+# one already has processes running leaves the other instance running
+# unnoticed while this worktree's edits silently don't show up in the
+# browser -- this has actually happened (2026-08-03 and again 2026-08-05).
+# Refuse instead of silently doing the wrong thing.
+# ---------------------------------------------------------------------------
+for proc_pattern in "rag/svr/task_executor.py" "api/ragflow_server.py"; do
+  running_pid="$(pgrep -f "$proc_pattern" | head -1 || true)"
+  if [ -n "$running_pid" ]; then
+    running_root="$(readlink -f "/proc/$running_pid/cwd" 2>/dev/null || true)"
+    if [ -n "$running_root" ] && [ "$running_root" != "$REPO_ROOT" ]; then
+      echo "ERROR: a RAGFlow dev process is already running from a DIFFERENT worktree." >&2
+      echo "  already running from  : $running_root (pid $running_pid, $proc_pattern)" >&2
+      echo "  this script's worktree: $REPO_ROOT" >&2
+      echo >&2
+      echo "Starting here would leave that instance running while ~/ragflow and" >&2
+      echo "wsl_dev_STATUS.md drift out of sync with what's actually serving requests." >&2
+      echo "Stop it first (works from either worktree): bash scripts/wsl_stop_ragflow.sh" >&2
+      exit 1
+    fi
+  fi
+done
+
+if [ -L "$HOME/ragflow" ]; then
+  symlink_target="$(readlink -f "$HOME/ragflow" 2>/dev/null || true)"
+  if [ "$symlink_target" != "$REPO_ROOT" ]; then
+    echo "[fix]   ~/ragflow pointed at $symlink_target -- repointing to $REPO_ROOT"
+    ln -sfn "$REPO_ROOT" "$HOME/ragflow"
+  fi
+elif [ ! -e "$HOME/ragflow" ]; then
+  echo "[setup] creating ~/ragflow -> $REPO_ROOT"
+  ln -sfn "$REPO_ROOT" "$HOME/ragflow"
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Base services (MySQL / Redis / MinIO / Elasticsearch)
@@ -166,12 +209,64 @@ else
     # be overridden to 'python' or every API call 404s against a server that
     # was never started.
     export API_PROXY_SCHEME=python
-    nohup npm run dev > "$LOG_DIR/web_dev.log" 2>&1 &
+    # `disown` alone isn't enough here: `npm run dev` inherits the
+    # launching pty's stdin ("stdio: inherit" for the vite child it
+    # spawns), so when the wsl.exe session that ran this script exits and
+    # the pty closes, the frontend process dies with it even though it was
+    # nohup'd -- verified by watching it survive as long as the launching
+    # session stayed open, then vanish the moment that session ended.
+    # `setsid` gives it its own session (no controlling terminal) and
+    # `</dev/null` detaches stdin outright, which is what actually keeps
+    # it alive after this script's own session ends. The backend processes
+    # above don't need this -- they're plain `python` execs with no
+    # inherited-stdio child process, so nohup+disown is sufficient there.
+    setsid nohup npm run dev < /dev/null > "$LOG_DIR/web_dev.log" 2>&1 &
     disown
   )
 fi
 
 sleep 2
+
+# ---------------------------------------------------------------------------
+# 6. Auto-record ground truth into wsl_dev_STATUS.md. The rest of that file
+# ("Last updated", "Environment status" prose, "Known gaps") is hand-
+# maintained and can drift from reality if whoever's working forgets to
+# update it before handing off -- that's already happened once. This block
+# can't drift: it's regenerated between fixed markers on every run and
+# nothing else in the file is touched.
+# ---------------------------------------------------------------------------
+STATUS_FILE="$REPO_ROOT/scripts/wsl_dev_STATUS.md"
+if [ -f "$STATUS_FILE" ]; then
+  GIT_BIN="git"
+  command -v git.exe >/dev/null 2>&1 && GIT_BIN="git.exe"
+  branch="$(cd "$REPO_ROOT" && "$GIT_BIN" branch --show-current 2>/dev/null || echo unknown)"
+  commit="$(cd "$REPO_ROOT" && "$GIT_BIN" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  te_pid="$(pgrep -f 'rag/svr/task_executor.py' | head -1 || true)"
+  rs_pid="$(pgrep -f 'api/ragflow_server.py' | head -1 || true)"
+  vite_pid="$(pgrep -f 'vite --host' | head -1 || true)"
+  symlink_now="$(readlink -f "$HOME/ragflow" 2>/dev/null || echo '(missing)')"
+  {
+    echo "<!-- AUTO-STATUS:BEGIN (rewritten by wsl_start_ragflow.sh every run -- do not hand-edit this block, edit the prose sections below instead) -->"
+    echo "**Auto-verified environment** (written by \`wsl_start_ragflow.sh\` itself, not hand-maintained -- trust this over the prose below if they ever disagree):"
+    echo
+    echo "- **When:** $(date -Iseconds)"
+    echo "- **Worktree:** \`$REPO_ROOT\`"
+    echo "- **Branch / commit:** \`$branch\` @ \`$commit\`"
+    echo "- **~/ragflow symlink target:** \`$symlink_now\`"
+    echo "- **task_executor.py:** $([ -n "$te_pid" ] && echo "running, pid $te_pid" || echo "not running")"
+    echo "- **ragflow_server.py:** $([ -n "$rs_pid" ] && echo "running, pid $rs_pid" || echo "not running")"
+    echo "- **vite dev server:** $([ -n "$vite_pid" ] && echo "running, pid $vite_pid" || echo "not running")"
+    echo "<!-- AUTO-STATUS:END -->"
+  } > "$LOG_DIR/.auto_status_block.md"
+  awk '
+    BEGIN { while ((getline line < ARGV[2]) > 0) { block = block line "\n" }; ARGV[2] = "" }
+    /<!-- AUTO-STATUS:BEGIN/ { printf "%s", block; skip = 1; next }
+    /<!-- AUTO-STATUS:END/ { skip = 0; next }
+    skip { next }
+    { print }
+  ' "$STATUS_FILE" "$LOG_DIR/.auto_status_block.md" > "$STATUS_FILE.tmp" && mv "$STATUS_FILE.tmp" "$STATUS_FILE"
+fi
+
 echo
 echo "================================================================"
 echo " RAGFlow dev stack starting. Logs in: $LOG_DIR"
