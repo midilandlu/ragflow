@@ -64,6 +64,11 @@ type Service struct {
 	ingestionTaskDAO    *dao.IngestionTaskDAO
 	ingestionTaskLogDao *dao.IngestionTaskLogDAO
 	ingestionTaskSvc    *servicepkg.IngestionTaskService
+
+	BillingProductDAO      *dao.BillingProductDAO
+	BillingSubscriptionDAO *dao.BillingSubscriptionDAO
+	MemoryDAO              *dao.MemoryDAO
+	SearchDAO              *dao.SearchDAO
 }
 
 // NewService create admin service
@@ -89,6 +94,11 @@ func NewService() *Service {
 		ingestionTaskDAO:    dao.NewIngestionTaskDAO(),
 		ingestionTaskLogDao: dao.NewIngestionTaskLogDAO(),
 		ingestionTaskSvc:    servicepkg.NewIngestionTaskService(),
+
+		BillingProductDAO:      dao.NewBillingProductDAO(),
+		BillingSubscriptionDAO: dao.NewBillingSubscriptionDAO(),
+		MemoryDAO:              dao.NewMemoryDAO(),
+		SearchDAO:              dao.NewSearchDAO(),
 	}
 }
 
@@ -453,11 +463,11 @@ func (s *Service) getInitTenantLLM(ctx context.Context, userID string) ([]*entit
 	// Remove duplicates based on (tenant_id, llm_factory, llm_name)
 	seen := make(map[string]bool)
 	var uniqueLLMs []*entity.TenantLLM
-	for _, tllm := range tenantLLMs {
-		key := fmt.Sprintf("%s|%s|%s", tllm.TenantID, tllm.LLMFactory, *tllm.LLMName)
+	for _, tenantLLM := range tenantLLMs {
+		key := fmt.Sprintf("%s|%s|%s", tenantLLM.TenantID, tenantLLM.LLMFactory, *tenantLLM.LLMName)
 		if !seen[key] {
 			seen[key] = true
-			uniqueLLMs = append(uniqueLLMs, tllm)
+			uniqueLLMs = append(uniqueLLMs, tenantLLM)
 		}
 	}
 
@@ -1006,7 +1016,7 @@ func (s *Service) ListServices(ctx context.Context) ([]ServiceStatus, error) {
 
 	// storage engine
 	storageImpl := storage.GetStorageFactory().GetStorage()
-	storageHealth := storageImpl.Health()
+	storageHealth := storageImpl.Health(ctx)
 	if storageHealth {
 		results = append(results, newServiceStatus("storage_engine", storageImpl.Type(), "alive", time.Now(), ""))
 	} else {

@@ -54,7 +54,7 @@ type Pipeline struct {
 	tracker *canvas.RunTracker     // optional injected; nil -> resolve at Run
 	// requireResume, when true, makes Run refuse to start if no checkpoint
 	// store can be resolved (no injected store AND no global Redis client).
-	// Plan §6.a M4 方案 A: a deployment that cannot persist checkpoints must
+	// Plan §6.a M4: a deployment that cannot persist checkpoints must
 	// not silently degrade to a non-resumable run — it must surface a clear,
 	// distinguishable error so the caller knows resume is unavailable.
 	requireResume bool
@@ -140,11 +140,10 @@ func WithProgressSink(s ProgressSink) PipelineOption {
 // It accepts either the inner canvas DSL or the template wrapper whose
 // top-level `dsl` field carries that canvas.
 func NewPipelineFromDSL(dsl []byte, taskID string, opts ...PipelineOption) (*Pipeline, error) {
-	var raw map[string]any
-	if err := json.Unmarshal(dsl, &raw); err != nil {
-		return nil, fmt.Errorf("pipeline: decode DSL: %w", err)
-	}
-	canvasDSL, err := unwrapCanvasDSL(raw)
+	// UnwrapCanvasDSL is the single source of truth for stripping the
+	// optional {"dsl": {...}} canvas envelope; it also reports a nil/unparseable
+	// DSL.
+	canvasDSL, err := UnwrapCanvasDSL(dsl)
 	if err != nil {
 		return nil, err
 	}
@@ -179,20 +178,6 @@ func (p *Pipeline) WithComponentFactory(factory runtime.ComponentFactory) *Pipel
 		p.factory = factory
 	}
 	return p
-}
-
-func unwrapCanvasDSL(raw map[string]any) (map[string]any, error) {
-	if len(raw) == 0 {
-		return nil, errNilDSL
-	}
-	if rawDSL, ok := raw["dsl"]; ok {
-		canvasDSL, ok := rawDSL.(map[string]any)
-		if !ok || len(canvasDSL) == 0 {
-			return nil, errNilDSL
-		}
-		return canvasDSL, nil
-	}
-	return raw, nil
 }
 
 func mergeInto(dst, src map[string]any) map[string]any {
@@ -387,7 +372,7 @@ func coalesceErr(errs ...error) error {
 // There is no pipeline-layer partial resume entry point: execution always
 // starts from the graph entry and component-level replay decisions belong to
 // the components themselves.
-func (p *Pipeline) Run(ctx context.Context, inputs map[string]any, override_params map[string]any) (map[string]any, error) {
+func (p *Pipeline) Run(ctx context.Context, inputs map[string]any, overrideParams map[string]any) (map[string]any, error) {
 	if p == nil {
 		return nil, fmt.Errorf("pipeline: Run on nil pipeline")
 	}
@@ -414,7 +399,7 @@ func (p *Pipeline) Run(ctx context.Context, inputs map[string]any, override_para
 	store := p.resolveStore()
 	tracker := p.resolveTracker()
 
-	// M4 (plan §6.a 方案 A): refuse to start when resume is required but no
+	// M4 (plan §6.a): refuse to start when resume is required but no
 	// checkpoint store is resolvable. A Redis-less deployment must not pretend
 	// the task is resumable; it must report the gap clearly so the caller can
 	// refuse to enqueue the task instead of silently running a non-resumable
@@ -435,8 +420,8 @@ func (p *Pipeline) Run(ctx context.Context, inputs map[string]any, override_para
 	}
 	// Run-level setups (keyed by cpnID) override the DSL-baked component
 	// setups at compile time (higher priority; see canvas.WithOverrideParams).
-	if override_params != nil {
-		compileOpts = append(compileOpts, canvas.WithOverrideParams(override_params))
+	if overrideParams != nil {
+		compileOpts = append(compileOpts, canvas.WithOverrideParams(overrideParams))
 	}
 	compiled, err := canvas.Compile(compileCtx, p.canvas, compileOpts...)
 	if err != nil {
@@ -477,7 +462,7 @@ func (p *Pipeline) Run(ctx context.Context, inputs map[string]any, override_para
 
 	// Resumable path: detect DSL / override edits since the checkpoint was
 	// written and discard a stale checkpoint before resuming (see guardDSLChange).
-	p.guardDSLChange(ctx, store, tracker, p.taskID, override_params)
+	p.guardDSLChange(ctx, store, tracker, p.taskID, overrideParams)
 
 	// Resumable path: record the run, then loop Invoke until the graph
 	// completes or a non-resumable error surfaces.
