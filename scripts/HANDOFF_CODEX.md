@@ -30,6 +30,25 @@
   `wsl -d Ubuntu-24.04 -- bash -c "..."` 可用）；如果你的工具沒有 shell 存取
   WSL2 的能力，先跟人類確認怎麼執行 `scripts/wsl_*.sh`。
 
+## 🆕 2026-08-06 更新（Codex 接手與 upstream 同步）
+
+本次 Codex 接手後，使用者做了以下明確決策：
+
+1. **不保留 `verify_api_key()` 健康檢查的 `max_tokens: 16` 修改。**
+   `api/apps/services/provider_api_service.py` 已還原到 committed state；不要再把
+   這個修改當成待審或待提交工作。
+2. **已同步最新 upstream。** 使用 `gpt-5.6-terra` 子代理 fetch
+   `upstream/main`（`2e37997ab`），再以普通 merge、無 rebase／force 的方式併入
+   本分支；merge commit 是 `db348b9eb`。同步過程無衝突，且沒有推送 upstream。
+3. **Tongyi-Qianwen PR 已完成。**
+   [infiniflow/ragflow#17887](https://github.com/infiniflow/ragflow/pull/17887)
+   已於 2026-08-05 merge，不再需要追蹤 review。
+4. **DeepInfra `Qwen/QwQ-32B` 仍是外部 LiteLLM 串流問題。** 本次沒有加入
+   RAGFlow workaround；同供應商其他已驗證可用模型仍是現階段替代方案。
+
+推送邊界維持不變：本次同步與 handoff 更新只推 `origin` 的
+`claude/local-ragflow-service-check-0ba110`，不向 `upstream` 寫入任何內容。
+
 ## 🆕 2026-08-06 更新（承接自 Claude Code / Sonnet 5 的 session）
 
 **背景**：這個 worktree（`ragflow-wsl2-dev-setup-969743`，branch

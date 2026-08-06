@@ -21,29 +21,29 @@ don't get lost or drift when this file's content gets replaced.
 - **vite dev server:** running, pid 83551
 <!-- AUTO-STATUS:END -->
 
+> The AUTO-STATUS block is the snapshot from the most recent start-script
+> run. After an explicit stop, the live checks and prose below are newer.
+
 ---
 
 ## Last updated
 
-- **When:** 2026-08-06 (session spanned 2026-08-05 into 2026-08-06)
-- **By:** Claude Code, in worktree
+- **When:** 2026-08-06
+- **By:** OpenAI Codex, continuing Claude Code's handoff in worktree
   `D:\ragflow\.claude\worktrees\ragflow-wsl2-dev-setup-969743`, branch
   `claude/local-ragflow-service-check-0ba110`.
-- **Branch / commit:** `claude/local-ragflow-service-check-0ba110` @
-  `6e92a7cf6` (pushed to `origin`), **plus one uncommitted change** on top:
-  `api/apps/services/provider_api_service.py` (see "What's been done" #3
-  below) - not yet committed, needs a decision next session.
-- **Working tree:** 2 modified files uncommitted - `provider_api_service.py`
-  (real code change, see #3 below) and this file itself (`wsl_dev_STATUS.md`,
-  this handoff update).
+- **Upstream sync base:** `upstream/main` @ `2e37997ab`; merged without
+  conflict by `db348b9eb` (no rebase, force push, or upstream write).
+- **Working tree:** the prior uncommitted `provider_api_service.py`
+  `max_tokens: 16` change was discarded by explicit user decision. Only
+  this handoff-document update remained before the final origin-only commit.
 
 ## Environment status (as of last update)
 
 `~/ragflow` symlink points at **this** worktree
 (`ragflow-wsl2-dev-setup-969743`). Backend/task_executor/frontend were
-healthy through the end of the session (full stack HTTP 200, including the
-uncommitted `max_tokens` fix below already live in the running backend at
-that point) and then **deliberately stopped** (`bash
+healthy through the end of the previous Claude session and then
+**deliberately stopped** (`bash
 scripts/wsl_stop_ragflow.sh`) as part of this handoff, so the machine
 isn't left running someone else's session unattended. Base services
 (MySQL/Redis/MinIO/Elasticsearch) are left running (systemd-managed,
@@ -54,13 +54,10 @@ shared infrastructure).
 | WSL2 distro `Ubuntu-24.04` | installed, C: drive |
 | MySQL / Redis / MinIO / Elasticsearch 8.11.3 | native systemd services, all `active` + `enabled` (left running) |
 | `task_executor.py` | **stopped** for handoff - was healthy before stopping |
-| `ragflow_server.py` | **stopped** for handoff - was healthy before stopping, including the uncommitted `max_tokens` fix |
+| `ragflow_server.py` | **stopped** for handoff - was healthy before stopping |
 | Vite dev server | **stopped** for handoff - was healthy before stopping |
 
-To bring the app back up: `bash scripts/wsl_start_ragflow.sh` (the
-uncommitted `provider_api_service.py` change is still in the working tree,
-so it'll be there when the backend restarts - it's just not in git history
-yet).
+To bring the app back up: `bash scripts/wsl_start_ragflow.sh`.
 
 ## What's been done this "chapter" of work
 
@@ -82,23 +79,19 @@ yet).
    rotated by the user after being pasted in chat - **not stored/used by
    me**). Committed (`fe485eaf4`), pushed to `origin`, and opened
    **[infiniflow/ragflow#17887](https://github.com/infiniflow/ragflow/pull/17887)**
-   against upstream from a clean cherry-picked branch (confirmed upstream
-   `main` @ `2bee51ca9` still had the typo before opening). PR status not
-   yet checked as of this handoff.
-3. **DeepInfra `Qwen/QwQ-32B` investigation - partially resolved,
-   uncommitted fix pending a decision**:
+   against upstream from a clean cherry-picked branch. The PR was merged on
+   2026-08-05; no further review follow-up is pending.
+3. **DeepInfra `Qwen/QwQ-32B` investigation - external issue remains**:
    - User reported "No valid response received" / warning-triangle on this
      model after saving DeepInfra credentials.
-   - Found and fixed a real, broader gap: the health-check call in
-     `verify_api_key()`'s `check_streamly()` didn't set `max_tokens` at
+   - Investigated a possible broader gap: the health-check call in
+   `verify_api_key()`'s `check_streamly()` didn't set `max_tokens` at
      all, so it inherited whatever default the provider applies - for some
      providers/models that default exceeds the model's actual limit
      (confirmed via direct curl to DeepInfra: unset `max_tokens` defaults
      to 65536, but QwQ-32B's real `max_total_tokens` is 40960, a hard
-     rejection). Added an explicit small `max_tokens: 16` to that one
-     verification call. **This is a legitimate fix affecting up to 79
-     catalog entries with no configured `max_tokens`** - currently
-     uncommitted in the working tree, needs review/commit next session.
+     rejection). An explicit `max_tokens: 16` was tried locally, but the
+     user decided not to retain it; the working tree has been restored.
    - **This did NOT fix the QwQ-32B symptom** - after the fix, the same
      error persists but now root-caused precisely: it's litellm (installed
      version `1.84.0`) itself crashing inside `stream_chunk_builder()`
@@ -115,18 +108,16 @@ yet).
    - Spawned a background task suggestion (`task_cd383eb7`) to check for a
      newer litellm release and draft (not auto-submit) a GitHub issue -
      **still pending, user has not acted on it yet.**
+4. **Synchronized the active branch with upstream**: fetched
+   `upstream/main` @ `2e37997ab` and merged it normally via `db348b9eb`.
+   The merge was conflict-free; no history rewrite and no upstream push were
+   performed.
 
 ## Known gaps / not yet done
 
-- **Decide on and commit/discard the uncommitted `max_tokens: 16`
-  verification fix** in `provider_api_service.py` (see #3 above) - it's
-  independently useful (fixes a real class of false-negative verification
-  failures) even though it didn't resolve the QwQ-32B issue it was chasing.
 - **QwQ-32B via DeepInfra remains broken** due to the external litellm bug
   described above - no action possible on our side beyond the pending
   litellm-version-check / issue-filing background task (`task_cd383eb7`).
-- **Watch [infiniflow/ragflow#17887](https://github.com/infiniflow/ragflow/pull/17887)**
-  (the Tongyi-Qianwen typo fix PR) for review feedback/merge.
 - **Two worktrees still exist with this tooling and will keep diverging**
   (`ragflow-wsl2-dev-setup-969743` and
   `update-understand-anything-analysis-21479f`) - mitigated (not solved,
