@@ -32,11 +32,13 @@ don't get lost or drift when this file's content gets replaced.
 - **By:** OpenAI Codex, continuing Claude Code's handoff in worktree
   `D:\ragflow\.claude\worktrees\ragflow-wsl2-dev-setup-969743`, branch
   `claude/local-ragflow-service-check-0ba110`.
-- **Upstream sync base:** `upstream/main` @ `2e37997ab`; merged without
-  conflict by `db348b9eb` (no rebase, force push, or upstream write).
-- **Working tree:** the prior uncommitted `provider_api_service.py`
-  `max_tokens: 16` change was discarded by explicit user decision. Only
-  this handoff-document update remained before the final origin-only commit.
+- **Upstream sync base:** `upstream/main` @ `8379165c1`; merged without
+  conflict by `85dbb107e` (no rebase, force push, or upstream write).
+- **Active branch:** 0 commits behind and 17 commits ahead of upstream; the
+  merge has not yet been pushed to origin at the time of this snapshot.
+- **Working tree:** clean before this status update. The prior uncommitted
+  `provider_api_service.py` `max_tokens: 16` change remains discarded by
+  explicit user decision.
 
 ## Environment status (as of last update)
 
@@ -108,10 +110,10 @@ To bring the app back up: `bash scripts/wsl_start_ragflow.sh`.
    - Spawned a background task suggestion (`task_cd383eb7`) to check for a
      newer litellm release and draft (not auto-submit) a GitHub issue -
      **still pending, user has not acted on it yet.**
-4. **Synchronized the active branch with upstream**: fetched
-   `upstream/main` @ `2e37997ab` and merged it normally via `db348b9eb`.
-   The merge was conflict-free; no history rewrite and no upstream push were
-   performed.
+4. **Synchronized the active branch with upstream**: the first sync fetched
+   `upstream/main` @ `2e37997ab` and merged it via `db348b9eb`; a later upstream
+   update to `8379165c1` was merged conflict-free via `85dbb107e`. No history
+   rewrite or upstream push was performed.
 
 ## Known gaps / not yet done
 

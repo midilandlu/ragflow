@@ -30,6 +30,14 @@
   `wsl -d Ubuntu-24.04 -- bash -c "..."` 可用）；如果你的工具沒有 shell 存取
   WSL2 的能力，先跟人類確認怎麼執行 `scripts/wsl_*.sh`。
 
+## 🆕 2026-08-06 更新（再次同步 upstream）
+
+upstream 在上一輪同步後又前進到 `8379165c1`（`fix: record generated wiki
+page versions (#17931)`）。已由 `gpt-5.6-terra` 子代理以普通 merge 併入本分支，
+產生 merge commit `85dbb107e`，無衝突、無 rebase／reset／force，且尚未推送
+任何 remote。active branch 現在相對 upstream 為 0 behind、17 ahead；待交接文件
+更新完成後只推 `origin` 同名 branch。
+
 ## 🆕 2026-08-06 更新（Codex 接手與 upstream 同步）
 
 本次 Codex 接手後，使用者做了以下明確決策：
