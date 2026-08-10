@@ -64,6 +64,11 @@ type Service struct {
 	ingestionTaskDAO    *dao.IngestionTaskDAO
 	ingestionTaskLogDao *dao.IngestionTaskLogDAO
 	ingestionTaskSvc    *servicepkg.IngestionTaskService
+
+	BillingProductDAO      *dao.BillingProductDAO
+	BillingSubscriptionDAO *dao.BillingSubscriptionDAO
+	MemoryDAO              *dao.MemoryDAO
+	SearchDAO              *dao.SearchDAO
 }
 
 // NewService create admin service
@@ -89,6 +94,11 @@ func NewService() *Service {
 		ingestionTaskDAO:    dao.NewIngestionTaskDAO(),
 		ingestionTaskLogDao: dao.NewIngestionTaskLogDAO(),
 		ingestionTaskSvc:    servicepkg.NewIngestionTaskService(),
+
+		BillingProductDAO:      dao.NewBillingProductDAO(),
+		BillingSubscriptionDAO: dao.NewBillingSubscriptionDAO(),
+		MemoryDAO:              dao.NewMemoryDAO(),
+		SearchDAO:              dao.NewSearchDAO(),
 	}
 }
 
@@ -453,11 +463,11 @@ func (s *Service) getInitTenantLLM(ctx context.Context, userID string) ([]*entit
 	// Remove duplicates based on (tenant_id, llm_factory, llm_name)
 	seen := make(map[string]bool)
 	var uniqueLLMs []*entity.TenantLLM
-	for _, tllm := range tenantLLMs {
-		key := fmt.Sprintf("%s|%s|%s", tllm.TenantID, tllm.LLMFactory, *tllm.LLMName)
+	for _, tenantLLM := range tenantLLMs {
+		key := fmt.Sprintf("%s|%s|%s", tenantLLM.TenantID, tenantLLM.LLMFactory, *tenantLLM.LLMName)
 		if !seen[key] {
 			seen[key] = true
-			uniqueLLMs = append(uniqueLLMs, tllm)
+			uniqueLLMs = append(uniqueLLMs, tenantLLM)
 		}
 	}
 
@@ -1006,7 +1016,7 @@ func (s *Service) ListServices(ctx context.Context) ([]ServiceStatus, error) {
 
 	// storage engine
 	storageImpl := storage.GetStorageFactory().GetStorage()
-	storageHealth := storageImpl.Health()
+	storageHealth := storageImpl.Health(ctx)
 	if storageHealth {
 		results = append(results, newServiceStatus("storage_engine", storageImpl.Type(), "alive", time.Now(), ""))
 	} else {
@@ -1385,38 +1395,40 @@ func (s *Service) ListAllConfigs() ([]map[string]interface{}, error) {
 func (s *Service) ListEnvironments() ([]map[string]interface{}, error) {
 	result := make([]map[string]interface{}, 0)
 
+	globalConfig := server.GetConfig()
+
 	// DOC_ENGINE
-	docEngine := common.GetEnv(common.EnvDocEngine)
+	docEngine := globalConfig.GetEnvDocumentEngineType()
 	if docEngine == "" {
 		docEngine = "elasticsearch"
 	}
 	result = append(result, map[string]interface{}{
-		"env":   "DOC_ENGINE",
+		"env":   "DOCUMENT_ENGINE",
 		"value": docEngine,
 	})
 
 	// DEFAULT_SUPERUSER_EMAIL
-	defaultSuperuserEmail := common.GetEnv(common.EnvDefaultSuperuserEmail)
+	defaultSuperuserEmail := globalConfig.GetEnvDefaultSuperUserEmail()
 	if defaultSuperuserEmail == "" {
 		defaultSuperuserEmail = "admin@ragflow.io"
 	}
 	result = append(result, map[string]interface{}{
-		"env":   common.EnvDefaultSuperuserEmail,
+		"env":   "DEFAULT_SUPERUSER_EMAIL",
 		"value": defaultSuperuserEmail,
 	})
 
 	// DB_TYPE
-	dbType := common.GetEnv(common.EnvDBType)
+	dbType := globalConfig.GetEnvDatabaseType()
 	if dbType == "" {
 		dbType = "mysql"
 	}
 	result = append(result, map[string]interface{}{
-		"env":   "DB_TYPE",
+		"env":   "DATABASE",
 		"value": dbType,
 	})
 
 	// DEVICE
-	device := common.GetEnv(common.EnvDevice)
+	device := globalConfig.GetEnvDeviceType()
 	if device == "" {
 		device = "cpu"
 	}
@@ -1426,12 +1438,12 @@ func (s *Service) ListEnvironments() ([]map[string]interface{}, error) {
 	})
 
 	// STORAGE_IMPL
-	storageImpl := common.GetEnv(common.EnvStorageImpl)
+	storageImpl := globalConfig.GetEnvStorageType()
 	if storageImpl == "" {
-		storageImpl = "MINIO"
+		storageImpl = "minio"
 	}
 	result = append(result, map[string]interface{}{
-		"env":   common.EnvStorageImpl,
+		"env":   "STORAGE",
 		"value": storageImpl,
 	})
 
