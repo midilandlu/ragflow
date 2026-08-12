@@ -189,6 +189,72 @@ repeatable part.
 
 ## Non-obvious gotchas (read before debugging for an hour)
 
+- **Anything that can reach `sudo` will hang forever in a non-interactive
+  shell -- it will NOT error out.** An agent session (Claude Code, Codex), a
+  CI job, or any `wsl -d Ubuntu-24.04 -- bash script.sh` invocation has no tty
+  to answer a password prompt, so `sudo` blocks silently and indefinitely. On
+  2026-08-13 this burned 25 minutes: the process was alive, the log was empty,
+  and nothing indicated a prompt was waiting. Diagnose it with
+  `ps -eo pid,ppid,stat,etime,cmd --forest` -- a `sudo ...` child sitting at
+  the same elapsed time as its parent is the signature.
+  - **Rule for every script in this repo: use `sudo -n` and fail loudly**
+    with an instruction telling the human which command to run themselves.
+    Never plain `sudo` in a script an agent might invoke.
+  - `wsl_start_ragflow.sh` was fixed this way (§ "1. Base services").
+  - Check first with `sudo -n true 2>/dev/null && echo ok || echo "needs
+    password"` before assuming a script is agent-safe.
+
+- **WSL2 reclaims the whole VM once the last process exits -- taking the
+  services you just started with it.** If you launch the stack via a one-shot
+  `wsl -d Ubuntu-24.04 -- bash start.sh` and that command returns, the distro
+  can shut down seconds later; `task_executor.py`, `ragflow_server.py` and Vite
+  all die, `/tmp` is wiped, and the next command you run silently cold-boots a
+  fresh VM. The tell-tale signs are all three at once: **exit code 0**, no
+  RAGFlow processes running, a base service back in `activating`, and a log
+  file under `/tmp` that no longer exists.
+  - Two consequences: **write start logs to a `/mnt/...` Windows path**, not
+    `/tmp`, so they survive a VM recycle and you can still read what happened;
+    and **pin the VM with a keepalive process** (e.g. a detached
+    `setsid nohup ... sleep infinity`) if you need the stack to outlive the
+    command that started it.
+  - Do not conclude "startup succeeded" from the exit code alone. Always
+    re-verify with `healthz` + a process list *after* the command returns.
+
+- **On a cold WSL2 boot, `systemctl is-active` lies for the first ~10-20
+  seconds.** The four base services are all `enabled`, but if WSL2 was
+  suspended and your command is what wakes it up, systemd is still starting
+  them when your script checks. A bare `is-active` guard therefore returns
+  false, and the script tries to `sudo systemctl start` a service that was
+  about to come up on its own. Fix: retry `is-active` for ~15s before
+  concluding the service is down (implemented in `wsl_start_ragflow.sh`).
+  - Corollary for diagnosis: **check service state again before blaming a
+    script.** On 2026-08-13 the services were all `active` by the time
+    anyone looked, which made the earlier `sudo systemctl start` look
+    inexplicable until the boot race was identified.
+
+- **Never pipe a long-running script through `tail`/`head`/`grep` when you
+  need to watch its progress.** The pipe buffers, so the output file stays
+  completely empty until the script exits -- and if it never exits, you get
+  nothing at all and cannot tell "working" from "hung". Redirect to a file
+  instead (`bash script.sh > /tmp/x.log 2>&1`) and read that file whenever
+  you want progress.
+
+- **Do not inline complex bash inside `wsl -d Ubuntu-24.04 -- bash -lc "..."`
+  from PowerShell.** Two layers of quoting mangle `$`, backslashes and quotes;
+  `awk '{print $2}'` in particular arrives as `awk: backslash not last
+  character on line`. Write the commands to a `.sh` file and run
+  `wsl -d Ubuntu-24.04 -- bash /mnt/c/.../script.sh`. This costs one extra
+  file and saves several failed round-trips. (Calling WSL from **Git Bash**
+  is worse still -- it rewrites `/mnt/c/...` arguments into Windows paths.
+  Always call WSL from PowerShell.)
+
+- **Read the code before asserting a root cause.** On 2026-08-13 an agent
+  reported that `wsl_start_ragflow.sh` "runs `sudo systemctl start` without
+  checking whether the service is active" -- the guard was right there on the
+  line above, and the real cause was the boot race described above. A wrong
+  root cause produces a wrong fix. Quote the actual line (`file:line`) in the
+  diagnosis; if you cannot quote it, you have not verified it.
+
 - **Never let `uv sync` or `npm install` write into a path under `/mnt/*`
   (i.e. anywhere on a Windows drive mounted into WSL2).** DrvFs cannot
   handle the volume of small-file metadata operations these tools do:

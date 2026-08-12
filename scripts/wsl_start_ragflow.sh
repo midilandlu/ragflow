@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 # One-click RAGFlow dev startup for WSL2 without Docker.
 #
+# AGENTS (Claude Code / Codex / CI) READ THIS BEFORE RUNNING:
+#   1. Run me from PowerShell, not Git Bash:
+#        wsl -d Ubuntu-24.04 -- bash /mnt/d/.../scripts/wsl_start_ragflow.sh
+#      Git Bash rewrites /mnt/c-style arguments into Windows paths.
+#   2. Redirect my output to a file (`> /tmp/ragflow_start.log 2>&1`) and read
+#      that file for progress. Do NOT pipe me through `tail`/`head` -- the pipe
+#      buffers and you will see an empty log whether I am working or hung.
+#   3. I take several minutes on a cold start (uv sync + npm install). Run me in
+#      the background; do not poll.
+#   4. I use `sudo -n` for the base services and fail loudly if a password is
+#      needed. If you see that failure, a human must run the printed command
+#      once in an interactive terminal -- no agent can answer a sudo prompt.
+#   5. WSL2 reclaims the VM once the last process exits, which kills everything
+#      I started. If you launched me from a one-shot `wsl -- bash ...`, verify
+#      afterwards with healthz + a process list; do not trust my exit code.
+#   Full write-ups: scripts/wsl_dev_README.md, "Non-obvious gotchas".
+#
 # Background: some environments block Docker Desktop by IT policy. This script
 # runs RAGFlow's four base services (MySQL, Redis, MinIO, Elasticsearch) as
 # native systemd services inside WSL2, and runs the Python backend and Vite
@@ -91,11 +108,28 @@ fi
 # 1. Base services (MySQL / Redis / MinIO / Elasticsearch)
 # ---------------------------------------------------------------------------
 for svc in mysql redis-server minio elasticsearch; do
+  # These are all `enabled`, so on a cold WSL2 boot systemd is usually still
+  # bringing them up when we get here. Give them a few seconds before deciding
+  # they need starting -- otherwise we race the boot and needlessly hit sudo.
+  for _ in $(seq 1 15); do
+    systemctl is-active --quiet "$svc" 2>/dev/null && break
+    sleep 1
+  done
+
   if systemctl is-active --quiet "$svc" 2>/dev/null; then
     echo "[ok]    $svc already running"
-  else
-    echo "[start] $svc"
-    sudo systemctl start "$svc"
+    continue
+  fi
+
+  echo "[start] $svc"
+  # -n (non-interactive): never block on a password prompt. A non-interactive
+  # caller (CI, an agent session, `wsl -- bash script`) has no way to answer it
+  # and would otherwise hang here forever with no output.
+  if ! sudo -n systemctl start "$svc" 2>/dev/null; then
+    echo "[fail]  cannot start $svc: sudo needs a password and this shell is non-interactive." >&2
+    echo "        Run this once yourself in an interactive terminal:" >&2
+    echo "          sudo systemctl start $svc" >&2
+    exit 1
   fi
 done
 

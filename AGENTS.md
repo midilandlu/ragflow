@@ -8,6 +8,40 @@ Use this file as the local operating guide for the current codebase. Prefer the 
 
 If Docker is unavailable in your environment, check `scripts/` for a documented native alternative (WSL2-based, no containers) before assuming the repo can't run without it.
 
+### Before you start RAGFlow (agents: read this, it has cost real hours)
+
+Start the stack with `bash scripts/wsl_start_ragflow.sh`. Read
+`scripts/wsl_dev_README.md`'s "Non-obvious gotchas" section **first** — the four
+rules below are the ones that have actually burned sessions, and the full
+explanations live there.
+
+1. **`sudo` hangs forever in a non-interactive shell — it does not error.** An
+   agent session, CI, or `wsl -d Ubuntu-24.04 -- bash script.sh` has no tty to
+   answer a password prompt. The process stays alive with an empty log and no
+   sign that anything is waiting. Scripts here must use `sudo -n` and fail
+   loudly. Probe with `sudo -n true 2>/dev/null && echo ok || echo "needs password"`.
+2. **On a cold WSL2 boot, `systemctl is-active` reports false for ~10–20s**
+   while systemd is still bringing the (already `enabled`) base services up.
+   Retry before concluding a service is down, and re-check state before blaming
+   a script.
+3. **Never pipe a long-running script through `tail`/`head`/`grep`** when you
+   need progress — the pipe buffers and the log stays empty until the script
+   exits. Redirect to a file (`> /tmp/x.log 2>&1`) and read that.
+4. **Call WSL from PowerShell, never from Git Bash** (Git Bash rewrites
+   `/mnt/c/...` into Windows paths), and **put non-trivial bash in a `.sh` file**
+   rather than inlining it in `bash -lc "..."` — two layers of quoting mangle
+   `$`, quotes and backslashes.
+5. **WSL2 reclaims the VM when the last process exits, killing the stack you
+   just started.** A one-shot `wsl -- bash start.sh` can return `exit 0` and
+   leave nothing running: `/tmp` wiped, services back to `activating`. Write
+   logs to a `/mnt/...` path, pin the VM with a detached keepalive process, and
+   **never conclude "startup succeeded" from the exit code — re-verify
+   `healthz` and the process list afterwards.**
+
+And generally: **quote the actual `file:line` when you assert a root cause.** A
+2026-08-13 session blamed a missing `is-active` guard that was present on the
+line above the failure; the wrong root cause produced the wrong fix.
+
 ## Core Stance
 - Treat legacy code as liability, not as a compatibility target.
 - Prefer deletion over shims, deprecated branches, wrapper APIs, and dual-track migration notes.
@@ -138,3 +172,5 @@ bash build.sh --all
 - Collapse duplicate implementations to one path.
 - Drop stale comments and documentation that describe a superseded design.
 - Keep exported APIs only when the current code actually needs them.
+
+## Imported Claude Cowork project instructions
